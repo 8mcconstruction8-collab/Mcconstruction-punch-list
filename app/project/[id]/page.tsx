@@ -170,7 +170,7 @@ export default function ProjectPage({
   return (
     <main className="shell">
       <header className="brand">
-        <div className="logo">MC</div>
+        <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
         <div>
           <h1>MC Punch List</h1>
           <p>Project closeout management</p>
