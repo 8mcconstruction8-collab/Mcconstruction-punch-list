@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isContractor() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/contractors/$(request.auth.uid));
+    }
+
+    function projectIsClosed(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.status == 'closed';
+    }
+
+    // Marker collection: a document here (created manually in the
+    // Firebase console) is what turns a normal Firebase Auth account
+    // into a contractor account. Nobody can write it from the client.
+    match /contractors/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /projects/{projectId} {
+      // A project can be fetched directly if you already know its ID
+      // (i.e. you have the share link) — but the collection can only
+      // be *listed/browsed* by the contractor. This is what stops a
+      // customer (or anyone else) from enumerating every project.
+      allow get: if request.auth != null;
+      allow list: if isContractor();
+      allow create, delete: if isContractor();
+
+      // Contractor can update anything. A non-contractor (the customer)
+      // may only ever write their own signature fields — nothing else on
+      // the project document.
+      allow update: if isContractor() ||
+        (request.auth != null &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['customerSignature', 'customerSignedName', 'customerSignedAt']));
+
+      match /items/{itemId} {
+        allow get, list: if request.auth != null;
+
+        // Customers can only add/edit items while the project is open.
+        // Contractors can always add/edit, even after closing, to fix
+        // records.
+        allow create: if isContractor() ||
+          (request.auth != null && !projectIsClosed(projectId));
+
+        // Contractor can change anything. A non-contractor (the
+        // customer) can only ever touch their own photo list — never
+        // the assessment or status fields — and only while open.
+        allow update: if isContractor() ||
+          (request.auth != null &&
+            !projectIsClosed(projectId) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['customerPhotos', 'history', 'updatedAt']));
+
+        allow delete: if isContractor();
+      }
+    }
+  }
+}
