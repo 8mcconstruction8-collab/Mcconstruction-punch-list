@@ -25,12 +25,12 @@ export default function PhotoUploader({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Selecione uma imagem.");
+      alert("Please select an image.");
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("A foto deve ter no máximo 10 MB.");
+      alert("Photo must be 10 MB or smaller.");
       return;
     }
 
@@ -46,7 +46,7 @@ export default function PhotoUploader({
       await onUploaded(url);
     } catch (error) {
       console.error(error);
-      alert("Não foi possível enviar a foto.");
+      alert("Couldn't upload the photo.");
     } finally {
       setUploading(false);
       event.target.value = "";
@@ -56,7 +56,7 @@ export default function PhotoUploader({
   return (
     <label className="btn btn-secondary row" style={{ display: "inline-flex" }}>
       {uploading ? <LoaderCircle size={17} /> : <Camera size={17} />}
-      {uploading ? "Enviando..." : "Adicionar foto"}
+      {uploading ? "Uploading..." : "Add photo"}
       <input
         type="file"
         accept="image/*"

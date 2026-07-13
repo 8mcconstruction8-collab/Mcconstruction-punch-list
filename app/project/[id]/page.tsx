@@ -149,7 +149,7 @@ export default function ProjectPage({
     setIntakeError("");
 
     if (!intakeName.trim() || !intakeAddress.trim()) {
-      setIntakeError("Preencha pelo menos seu nome e o endereço da obra.");
+      setIntakeError("Please fill in at least your name and the job site address.");
       return;
     }
 
@@ -162,7 +162,7 @@ export default function ProjectPage({
       });
     } catch (err) {
       console.error(err);
-      setIntakeError("Não foi possível salvar. Tente novamente.");
+      setIntakeError("Couldn't save. Please try again.");
     } finally {
       setSavingIntake(false);
     }
@@ -178,7 +178,7 @@ export default function ProjectPage({
     const nextStatus = project.status === "closed" ? "open" : "closed";
     if (
       nextStatus === "closed" &&
-      !confirm("Encerrar esta punch list? O cliente não poderá mais adicionar itens ou fotos.")
+      !confirm("Close this punch list? The customer will no longer be able to add items or photos.")
     ) {
       return;
     }
@@ -212,15 +212,15 @@ export default function ProjectPage({
 
         <section className="card stack">
           <div>
-            <h2 style={{ marginBottom: 4 }}>Bem-vindo(a)</h2>
+            <h2 style={{ marginBottom: 4 }}>Welcome</h2>
             <p className="small">
-              Antes de começar, precisamos de alguns dados sobre você e a obra.
+              Before we get started, we need a few details about you and the job site.
             </p>
           </div>
 
           <form className="stack" onSubmit={saveIntake}>
             <label>
-              Seu nome
+              Your name
               <input
                 value={intakeName}
                 onChange={(e) => setIntakeName(e.target.value)}
@@ -230,18 +230,18 @@ export default function ProjectPage({
             </label>
 
             <label>
-              E-mail (opcional)
+              Email (optional)
               <input
                 type="email"
                 value={intakeEmail}
                 onChange={(e) => setIntakeEmail(e.target.value)}
-                placeholder="voce@email.com"
+                placeholder="you@email.com"
                 autoComplete="email"
               />
             </label>
 
             <label>
-              Endereço da obra
+              Job site address
               <input
                 value={intakeAddress}
                 onChange={(e) => setIntakeAddress(e.target.value)}
@@ -253,7 +253,7 @@ export default function ProjectPage({
             {intakeError && <div className="error">{intakeError}</div>}
 
             <button className="btn btn-primary btn-wide" disabled={savingIntake}>
-              {savingIntake ? "Salvando..." : "Continuar"}
+              {savingIntake ? "Saving..." : "Continue"}
             </button>
           </form>
         </section>
@@ -276,13 +276,13 @@ export default function ProjectPage({
           <div>
             <div className="row">
               <h2 style={{ margin: 0 }}>
-                {project.customerName || "Aguardando dados do cliente"}
+                {project.customerName || "Waiting for customer info"}
               </h2>
               {project.status === "closed" && (
                 <span className="badge badge-neutral">Closed</span>
               )}
             </div>
-            <p>{project.address || "Endereço pendente"}</p>
+            <p>{project.address || "Address pending"}</p>
           </div>
           <div className="row">
             <Link href={`/project/${projectId}/report`} className="btn btn-secondary row">
@@ -338,7 +338,7 @@ export default function ProjectPage({
               ) : (
                 <>
                   <Lock size={16} />
-                  Encerrar
+                  Close
                 </>
               )}
             </button>

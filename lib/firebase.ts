@@ -7,8 +7,14 @@ import {
   signOut,
   type User
 } from "firebase/auth";
-import { doc, getDoc, getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore } from "firebase/firestore";
+import {
+  deleteObject,
+  getStorage,
+  listAll,
+  ref,
+  type StorageReference
+} from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -68,4 +74,25 @@ export async function checkIsContractor(uid: string) {
 
 export function watchAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
+}
+
+async function deleteStorageFolder(folderRef: StorageReference) {
+  const result = await listAll(folderRef);
+  await Promise.all(result.items.map((item) => deleteObject(item)));
+  await Promise.all(result.prefixes.map((prefix) => deleteStorageFolder(prefix)));
+}
+
+/**
+ * Permanently deletes a project: every item document, every photo in
+ * Storage under that project, and finally the project document itself.
+ * There is no undo — the caller is responsible for confirming with the
+ * contractor first.
+ */
+export async function deleteProjectCompletely(projectId: string) {
+  const itemsSnap = await getDocs(collection(db, "projects", projectId, "items"));
+  await Promise.all(itemsSnap.docs.map((itemDoc) => deleteDoc(itemDoc.ref)));
+
+  await deleteStorageFolder(ref(storage, `projects/${projectId}`));
+
+  await deleteDoc(doc(db, "projects", projectId));
 }

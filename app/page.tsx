@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -13,10 +13,11 @@ import {
   serverTimestamp,
   where
 } from "firebase/firestore";
-import { ClipboardCheck, LogOut, Plus, Search } from "lucide-react";
+import { ClipboardCheck, LogOut, Plus, Search, Trash2 } from "lucide-react";
 import {
   checkIsContractor,
   db,
+  deleteProjectCompletely,
   signOutContractor,
   watchAuthState
 } from "@/lib/firebase";
@@ -44,6 +45,7 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [lastProjectUrl, setLastProjectUrl] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
@@ -134,9 +136,36 @@ export default function HomePage() {
       loadProjects(contractor.uid);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível criar a punch list. Confira a configuração do Firebase.");
+      setError("Couldn't create the punch list. Check your Firebase configuration.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleDelete(
+    event: MouseEvent,
+    project: ProjectSummary
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!contractor) return;
+
+    const label = project.customerName || "this unnamed project";
+    const confirmed = confirm(
+      `Delete "${label}" forever? This removes every item and photo. This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(project.id);
+    try {
+      await deleteProjectCompletely(project.id);
+      setProjects((current) => current.filter((p) => p.id !== project.id));
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't delete. Please try again.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -173,6 +202,28 @@ export default function HomePage() {
           Sign out
         </button>
       </header>
+
+      <section className="card stack">
+        <div>
+          <strong>Fixed link for new customers</strong>
+          <p className="small" style={{ marginTop: 4 }}>
+            Always the same link — send it to any new customer. Whoever
+            opens it gets their own punch list created automatically and
+            fills in their own details.
+          </p>
+        </div>
+        <code style={{ wordBreak: "break-all" }}>
+          {typeof window !== "undefined" ? `${window.location.origin}/start` : "/start"}
+        </code>
+        <button
+          className="btn btn-secondary"
+          onClick={() =>
+            navigator.clipboard.writeText(`${window.location.origin}/start`)
+          }
+        >
+          Copy fixed link
+        </button>
+      </section>
 
       <section className="card stack">
         <label style={{ margin: 0 }}>
@@ -213,12 +264,23 @@ export default function HomePage() {
               >
                 <div className="row between">
                   <div>
-                    <strong>{project.customerName || "Aguardando dados do cliente"}</strong>
-                    <div className="small">{project.address || "Endereço pendente"}</div>
+                    <strong>{project.customerName || "Waiting for customer info"}</strong>
+                    <div className="small">{project.address || "Address pending"}</div>
                   </div>
-                  {project.status === "closed" && (
-                    <span className="badge badge-neutral">Closed</span>
-                  )}
+                  <div className="row">
+                    {project.status === "closed" && (
+                      <span className="badge badge-neutral">Closed</span>
+                    )}
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: "6px 8px" }}
+                      disabled={deletingId === project.id}
+                      onClick={(e) => handleDelete(e, project)}
+                      title="Delete permanently"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
                 <p className="small" style={{ marginTop: 8, marginBottom: 4 }}>
                   {project.completedCount} of {project.itemCount} items completed (
@@ -241,50 +303,51 @@ export default function HomePage() {
           onClick={() => setShowForm((value) => !value)}
         >
           <Plus size={16} />
-          {showForm ? "Cancel" : "New punch list"}
+          {showForm ? "Cancel" : "Or create a punch list manually"}
         </button>
 
         {showForm && (
           <>
             <div>
               <ClipboardCheck size={30} />
-              <h2 style={{ marginBottom: 4 }}>Nova punch list</h2>
+              <h2 style={{ marginBottom: 4 }}>New punch list</h2>
               <p className="small">
-                Se você já sabe os dados do cliente, preencha abaixo. Se preferir,
-                deixe em branco e gere o link direto — o próprio cliente
-                preenche nome, e-mail e endereço na primeira vez que abrir
-                (útil para clientes com mais de uma obra).
+                If you already know the customer's info, fill it in below. Or
+                leave it blank and generate the link right away — the
+                customer fills in their own name, email and address the
+                first time they open it (handy for customers with more
+                than one job site).
               </p>
             </div>
 
             <form className="stack" onSubmit={createProject}>
               <label>
-                Nome do cliente (opcional)
+                Customer name (optional)
                 <input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Deixe em branco para o cliente preencher"
+                  placeholder="Leave blank for the customer to fill in"
                   autoComplete="name"
                 />
               </label>
 
               <label>
-                E-mail do cliente (opcional)
+                Customer email (optional)
                 <input
                   type="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="cliente@email.com"
+                  placeholder="customer@email.com"
                   autoComplete="email"
                 />
               </label>
 
               <label>
-                Endereço da obra (opcional)
+                Job site address (optional)
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Deixe em branco para o cliente preencher"
+                  placeholder="Leave blank for the customer to fill in"
                   autoComplete="street-address"
                 />
               </label>
@@ -292,20 +355,20 @@ export default function HomePage() {
               {error && <div className="error">{error}</div>}
 
               <button className="btn btn-primary btn-wide" disabled={busy}>
-                {busy ? "Criando..." : "Criar punch list e gerar link"}
+                {busy ? "Creating..." : "Create punch list & generate link"}
               </button>
             </form>
 
             {lastProjectUrl && (
               <div className="notice stack">
-                <strong>Punch list criada.</strong>
-                <span className="small">Envie este link para o cliente:</span>
+                <strong>Punch list created.</strong>
+                <span className="small">Send this link to the customer:</span>
                 <code style={{ wordBreak: "break-all" }}>{lastProjectUrl}</code>
                 <button
                   className="btn btn-secondary"
                   onClick={() => navigator.clipboard.writeText(lastProjectUrl)}
                 >
-                  Copiar link
+                  Copy link
                 </button>
               </div>
             )}
