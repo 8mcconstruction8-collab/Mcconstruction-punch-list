@@ -50,6 +50,11 @@ export default function ProjectPage({
   const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [intakeName, setIntakeName] = useState("");
+  const [intakeEmail, setIntakeEmail] = useState("");
+  const [intakeAddress, setIntakeAddress] = useState("");
+  const [savingIntake, setSavingIntake] = useState(false);
+  const [intakeError, setIntakeError] = useState("");
 
   useEffect(() => {
     const unsubscribeAuth = watchAuthState(async (authUser) => {
@@ -139,6 +144,30 @@ export default function ProjectPage({
     }
   }
 
+  async function saveIntake(event: FormEvent) {
+    event.preventDefault();
+    setIntakeError("");
+
+    if (!intakeName.trim() || !intakeAddress.trim()) {
+      setIntakeError("Preencha pelo menos seu nome e o endereço da obra.");
+      return;
+    }
+
+    setSavingIntake(true);
+    try {
+      await updateDoc(doc(db, "projects", projectId), {
+        customerName: intakeName.trim(),
+        customerEmail: intakeEmail.trim() || null,
+        address: intakeAddress.trim()
+      });
+    } catch (err) {
+      console.error(err);
+      setIntakeError("Não foi possível salvar. Tente novamente.");
+    } finally {
+      setSavingIntake(false);
+    }
+  }
+
   async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
     alert("Punch list link copied.");
@@ -167,6 +196,71 @@ export default function ProjectPage({
     return <main className="shell loading">Project not found.</main>;
   }
 
+  const needsCustomerInfo =
+    !isContractor && (!project.customerName?.trim() || !project.address?.trim());
+
+  if (needsCustomerInfo) {
+    return (
+      <main className="shell">
+        <header className="brand">
+          <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
+          <div>
+            <h1>MC Punch List</h1>
+            <p>Project closeout management</p>
+          </div>
+        </header>
+
+        <section className="card stack">
+          <div>
+            <h2 style={{ marginBottom: 4 }}>Bem-vindo(a)</h2>
+            <p className="small">
+              Antes de começar, precisamos de alguns dados sobre você e a obra.
+            </p>
+          </div>
+
+          <form className="stack" onSubmit={saveIntake}>
+            <label>
+              Seu nome
+              <input
+                value={intakeName}
+                onChange={(e) => setIntakeName(e.target.value)}
+                placeholder="Ex.: John Smith"
+                autoComplete="name"
+              />
+            </label>
+
+            <label>
+              E-mail (opcional)
+              <input
+                type="email"
+                value={intakeEmail}
+                onChange={(e) => setIntakeEmail(e.target.value)}
+                placeholder="voce@email.com"
+                autoComplete="email"
+              />
+            </label>
+
+            <label>
+              Endereço da obra
+              <input
+                value={intakeAddress}
+                onChange={(e) => setIntakeAddress(e.target.value)}
+                placeholder="Ex.: 123 Main St, Worcester, MA"
+                autoComplete="street-address"
+              />
+            </label>
+
+            {intakeError && <div className="error">{intakeError}</div>}
+
+            <button className="btn btn-primary btn-wide" disabled={savingIntake}>
+              {savingIntake ? "Salvando..." : "Continuar"}
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header className="brand">
@@ -181,12 +275,14 @@ export default function ProjectPage({
         <div className="row between">
           <div>
             <div className="row">
-              <h2 style={{ margin: 0 }}>{project.customerName}</h2>
+              <h2 style={{ margin: 0 }}>
+                {project.customerName || "Aguardando dados do cliente"}
+              </h2>
               {project.status === "closed" && (
                 <span className="badge badge-neutral">Closed</span>
               )}
             </div>
-            <p>{project.address}</p>
+            <p>{project.address || "Endereço pendente"}</p>
           </div>
           <div className="row">
             <Link href={`/project/${projectId}/report`} className="btn btn-secondary row">

@@ -115,11 +115,6 @@ export default function HomePage() {
 
     if (!contractor) return;
 
-    if (!customerName.trim() || !address.trim()) {
-      setError("Preencha o nome do cliente e o endereço da obra.");
-      return;
-    }
-
     try {
       setBusy(true);
       const project = await addDoc(collection(db, "projects"), {
@@ -218,8 +213,8 @@ export default function HomePage() {
               >
                 <div className="row between">
                   <div>
-                    <strong>{project.customerName}</strong>
-                    <div className="small">{project.address}</div>
+                    <strong>{project.customerName || "Aguardando dados do cliente"}</strong>
+                    <div className="small">{project.address || "Endereço pendente"}</div>
                   </div>
                   {project.status === "closed" && (
                     <span className="badge badge-neutral">Closed</span>
@@ -255,17 +250,20 @@ export default function HomePage() {
               <ClipboardCheck size={30} />
               <h2 style={{ marginBottom: 4 }}>Nova punch list</h2>
               <p className="small">
-                Cadastre o cliente e a obra para começar a lista de correções.
+                Se você já sabe os dados do cliente, preencha abaixo. Se preferir,
+                deixe em branco e gere o link direto — o próprio cliente
+                preenche nome, e-mail e endereço na primeira vez que abrir
+                (útil para clientes com mais de uma obra).
               </p>
             </div>
 
             <form className="stack" onSubmit={createProject}>
               <label>
-                Nome do cliente
+                Nome do cliente (opcional)
                 <input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Ex.: John Smith"
+                  placeholder="Deixe em branco para o cliente preencher"
                   autoComplete="name"
                 />
               </label>
@@ -282,11 +280,11 @@ export default function HomePage() {
               </label>
 
               <label>
-                Endereço da obra
+                Endereço da obra (opcional)
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ex.: 123 Main St, Worcester, MA"
+                  placeholder="Deixe em branco para o cliente preencher"
                   autoComplete="street-address"
                 />
               </label>
@@ -294,7 +292,7 @@ export default function HomePage() {
               {error && <div className="error">{error}</div>}
 
               <button className="btn btn-primary btn-wide" disabled={busy}>
-                {busy ? "Criando..." : "Criar punch list"}
+                {busy ? "Criando..." : "Criar punch list e gerar link"}
               </button>
             </form>
 
