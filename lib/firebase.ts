@@ -7,7 +7,17 @@ import {
   signOut,
   type User
 } from "firebase/auth";
-import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from "firebase/firestore";
 import {
   deleteObject,
   getStorage,
@@ -28,7 +38,29 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+/**
+ * Firestore with offline persistence: data the app has already loaded
+ * (projects, items) stays readable from a local cache with no
+ * connection. Writes made while offline are queued automatically and
+ * sent once the connection returns. This does NOT cover Storage photo
+ * uploads — those still require a live connection.
+ *
+ * initializeFirestore() throws if it's called twice for the same app
+ * (can happen during Next.js hot reload), so fall back to the plain
+ * getFirestore() in that case rather than crashing.
+ */
+function createFirestoreInstance() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch (err) {
+    return getFirestore(app);
+  }
+}
+
+export const db = createFirestoreInstance();
 export const storage = getStorage(app);
 
 /**
