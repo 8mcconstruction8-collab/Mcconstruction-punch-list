@@ -136,6 +136,21 @@ textarea { min-height: 105px; resize: vertical; }
 .badge-priority-medium { background: #fef3c7; color: #92400e; }
 .badge-priority-high { background: #fee2e2; color: #991b1b; }
 
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.summary-card {
+  background: var(--black);
+  color: white;
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.summary-card .num { font-size: 24px; font-weight: 900; }
+.summary-card .label { font-size: 11px; color: #b8b8b8; margin-top: 2px; }
+
 .project-row { transition: transform .1s ease, box-shadow .15s ease; }
 .project-row:hover { box-shadow: 0 10px 30px rgba(0,0,0,.09); }
 

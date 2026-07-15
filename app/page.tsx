@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   addDoc,
+  arrayUnion,
   collection,
+  doc,
   getCountFromServer,
+  getDoc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
   where
 } from "firebase/firestore";
-import { ClipboardCheck, LogOut, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, ClipboardCheck, LogOut, Plus, Search, Trash2 } from "lucide-react";
 import {
   checkIsContractor,
   db,
@@ -21,7 +25,7 @@ import {
   signOutContractor,
   watchAuthState
 } from "@/lib/firebase";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Group, Project, ProjectStatus } from "@/lib/types";
 import type { User } from "firebase/auth";
 
 type ProjectSummary = Project & {
@@ -47,6 +51,17 @@ export default function HomePage() {
   const [lastProjectUrl, setLastProjectUrl] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [groupBusy, setGroupBusy] = useState(false);
+  const [groupError, setGroupError] = useState("");
+  const [lastGroupUrl, setLastGroupUrl] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
       if (!user || user.isAnonymous) {
@@ -70,7 +85,62 @@ export default function HomePage() {
   useEffect(() => {
     if (!contractor) return;
     loadProjects(contractor.uid);
+    loadGroups(contractor.uid);
   }, [contractor]);
+
+  async function loadGroups(uid: string) {
+    setLoadingGroups(true);
+    try {
+      const groupsQuery = query(
+        collection(db, "groups"),
+        where("contractorUid", "==", uid),
+        orderBy("createdAt", "desc")
+      );
+      const snapshot = await getDocs(groupsQuery);
+      setGroups(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Group)
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  }
+
+  async function createGroup(event: FormEvent) {
+    event.preventDefault();
+    setGroupError("");
+    setLastGroupUrl("");
+
+    if (!contractor) return;
+    if (!groupName.trim()) {
+      setGroupError("Give the group a name (e.g. the company or owner's name).");
+      return;
+    }
+
+    try {
+      setGroupBusy(true);
+      const group = await addDoc(collection(db, "groups"), {
+        name: groupName.trim(),
+        ownerName: ownerName.trim() || null,
+        ownerEmail: ownerEmail.trim() || null,
+        contractorUid: contractor.uid,
+        projectIds: [],
+        createdAt: serverTimestamp()
+      });
+
+      setGroupName("");
+      setOwnerName("");
+      setOwnerEmail("");
+      setLastGroupUrl(`${window.location.origin}/group/${group.id}`);
+      loadGroups(contractor.uid);
+    } catch (err) {
+      console.error(err);
+      setGroupError("Couldn't create the group. Please try again.");
+    } finally {
+      setGroupBusy(false);
+    }
+  }
 
   async function loadProjects(uid: string) {
     setLoadingProjects(true);
@@ -125,9 +195,16 @@ export default function HomePage() {
         address: address.trim(),
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
+        groupId: selectedGroupId || null,
         status: "open" as ProjectStatus,
         createdAt: serverTimestamp()
       });
+
+      if (selectedGroupId) {
+        await updateDoc(doc(db, "groups", selectedGroupId), {
+          projectIds: arrayUnion(project.id)
+        });
+      }
 
       setCustomerName("");
       setCustomerEmail("");
@@ -166,6 +243,25 @@ export default function HomePage() {
       alert("Couldn't delete. Please try again.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleAssignGroup(projectId: string, groupId: string) {
+    try {
+      await updateDoc(doc(db, "projects", projectId), {
+        groupId: groupId || null
+      });
+      if (groupId) {
+        await updateDoc(doc(db, "groups", groupId), {
+          projectIds: arrayUnion(projectId)
+        });
+      }
+      setProjects((current) =>
+        current.map((p) => (p.id === projectId ? { ...p, groupId: groupId || undefined } : p))
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't update the group for this project.");
     }
   }
 
@@ -223,6 +319,110 @@ export default function HomePage() {
         >
           Copy fixed link
         </button>
+      </section>
+
+      <section className="card stack">
+        <div className="row">
+          <Building2 size={20} />
+          <div>
+            <strong>Groups (owners with multiple locations)</strong>
+            <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+              For customers with more than one job site — the owner gets one
+              link that shows every location together. Each location keeps
+              its own separate link for whoever manages it day to day.
+            </p>
+          </div>
+        </div>
+
+        {!loadingGroups && groups.length > 0 && (
+          <div className="stack">
+            {groups.map((group) => (
+              <div key={group.id} className="row between">
+                <div>
+                  <strong style={{ fontSize: 14 }}>{group.name}</strong>
+                  <div className="small">
+                    {group.projectIds?.length || 0} location
+                    {group.projectIds?.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12 }}
+                  onClick={() =>
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/group/${group.id}`
+                    )
+                  }
+                >
+                  Copy owner link
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          className="btn btn-secondary row"
+          onClick={() => setShowGroupForm((value) => !value)}
+        >
+          <Plus size={16} />
+          {showGroupForm ? "Cancel" : "New group"}
+        </button>
+
+        {showGroupForm && (
+          <form className="stack" onSubmit={createGroup}>
+            <label>
+              Group name
+              <input
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="e.g. Rossi Hospitality Group"
+              />
+            </label>
+            <label>
+              Owner name (optional)
+              <input
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="e.g. Marco Rossi"
+                autoComplete="name"
+              />
+            </label>
+            <label>
+              Owner email (optional)
+              <input
+                type="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+                placeholder="owner@email.com"
+                autoComplete="email"
+              />
+            </label>
+
+            {groupError && <div className="error">{groupError}</div>}
+
+            <button className="btn btn-primary btn-wide" disabled={groupBusy}>
+              {groupBusy ? "Creating..." : "Create group"}
+            </button>
+          </form>
+        )}
+
+        {lastGroupUrl && (
+          <div className="notice stack">
+            <strong>Group created.</strong>
+            <span className="small">
+              Send this link to the owner — assign locations to it below, or
+              from each project's card in the list.
+            </span>
+            <code style={{ wordBreak: "break-all" }}>{lastGroupUrl}</code>
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigator.clipboard.writeText(lastGroupUrl)}
+            >
+              Copy link
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="card stack">
@@ -291,6 +491,24 @@ export default function HomePage() {
                     Created {project.createdAt.toDate().toLocaleDateString()}
                   </p>
                 )}
+                {groups.length > 0 && (
+                  <select
+                    value={project.groupId || ""}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onChange={(e) => handleAssignGroup(project.id, e.target.value)}
+                    style={{ marginTop: 8, fontSize: 12, padding: "6px 8px" }}
+                  >
+                    <option value="">No group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </Link>
             );
           })
@@ -351,6 +569,23 @@ export default function HomePage() {
                   autoComplete="street-address"
                 />
               </label>
+
+              {groups.length > 0 && (
+                <label>
+                  Group (optional)
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                  >
+                    <option value="">No group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               {error && <div className="error">{error}</div>}
 
