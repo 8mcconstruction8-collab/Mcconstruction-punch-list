@@ -8,6 +8,7 @@ import {
   type User
 } from "firebase/auth";
 import {
+  arrayRemove,
   collection,
   deleteDoc,
   doc,
@@ -16,7 +17,8 @@ import {
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager
+  persistentMultipleTabManager,
+  updateDoc
 } from "firebase/firestore";
 import {
   deleteObject,
@@ -121,10 +123,19 @@ async function deleteStorageFolder(folderRef: StorageReference) {
  * contractor first.
  */
 export async function deleteProjectCompletely(projectId: string) {
+  const projectSnap = await getDoc(doc(db, "projects", projectId));
+  const groupId = projectSnap.exists() ? projectSnap.data().groupId : null;
+
   const itemsSnap = await getDocs(collection(db, "projects", projectId, "items"));
   await Promise.all(itemsSnap.docs.map((itemDoc) => deleteDoc(itemDoc.ref)));
 
   await deleteStorageFolder(ref(storage, `projects/${projectId}`));
 
   await deleteDoc(doc(db, "projects", projectId));
+
+  if (groupId) {
+    await updateDoc(doc(db, "groups", groupId), {
+      projectIds: arrayRemove(projectId)
+    });
+  }
 }

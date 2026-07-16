@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -247,18 +248,32 @@ export default function HomePage() {
     }
   }
 
-  async function handleAssignGroup(projectId: string, groupId: string) {
+  async function handleAssignGroup(
+    projectId: string,
+    newGroupId: string,
+    previousGroupId?: string
+  ) {
     try {
       await updateDoc(doc(db, "projects", projectId), {
-        groupId: groupId || null
+        groupId: newGroupId || null
       });
-      if (groupId) {
-        await updateDoc(doc(db, "groups", groupId), {
+
+      if (previousGroupId && previousGroupId !== newGroupId) {
+        await updateDoc(doc(db, "groups", previousGroupId), {
+          projectIds: arrayRemove(projectId)
+        });
+      }
+
+      if (newGroupId) {
+        await updateDoc(doc(db, "groups", newGroupId), {
           projectIds: arrayUnion(projectId)
         });
       }
+
       setProjects((current) =>
-        current.map((p) => (p.id === projectId ? { ...p, groupId: groupId || undefined } : p))
+        current.map((p) =>
+          p.id === projectId ? { ...p, groupId: newGroupId || undefined } : p
+        )
       );
     } catch (err) {
       console.error(err);
@@ -532,7 +547,9 @@ export default function HomePage() {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    onChange={(e) => handleAssignGroup(project.id, e.target.value)}
+                    onChange={(e) =>
+                      handleAssignGroup(project.id, e.target.value, project.groupId)
+                    }
                     style={{ marginTop: 8, fontSize: 12, padding: "6px 8px" }}
                   >
                     <option value="">No group</option>
