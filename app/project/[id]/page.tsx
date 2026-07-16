@@ -14,7 +14,7 @@ import {
   updateDoc
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
-import { ClipboardPlus, Copy, FileText, Lock, LogIn, LogOut, Unlock } from "lucide-react";
+import { ArrowLeft, ClipboardPlus, Copy, FileText, Lock, LogIn, LogOut, Unlock } from "lucide-react";
 import {
   checkIsContractor,
   db,
@@ -274,6 +274,16 @@ export default function ProjectPage({
       </header>
 
       <section className="project-head">
+        {project.locationId && (
+          <Link
+            href={`/location/${project.locationId}`}
+            className="small row no-print"
+            style={{ marginBottom: 8, display: "inline-flex" }}
+          >
+            <ArrowLeft size={14} />
+            All rounds at this location
+          </Link>
+        )}
         <div className="row between">
           <div>
             <div className="row">
@@ -285,6 +295,11 @@ export default function ProjectPage({
               )}
             </div>
             <p>{project.address || "Address pending"}</p>
+            {project.roundLabel && (
+              <p className="small" style={{ margin: 0 }}>
+                {project.roundLabel}
+              </p>
+            )}
           </div>
           <div className="row">
             <Link href={`/project/${projectId}/report`} className="btn btn-secondary row">

@@ -18,15 +18,16 @@ import {
   updateDoc,
   where
 } from "firebase/firestore";
-import { Building2, ClipboardCheck, LogOut, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, ClipboardCheck, LogOut, MapPin, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import {
   checkIsContractor,
   db,
   deleteProjectCompletely,
+  migrateGroupToLocations,
   signOutContractor,
   watchAuthState
 } from "@/lib/firebase";
-import type { Group, Project, ProjectStatus } from "@/lib/types";
+import type { Group, Location, Project, ProjectStatus } from "@/lib/types";
 import type { User } from "firebase/auth";
 import BrandFooter from "@/components/BrandFooter";
 
@@ -64,6 +65,18 @@ export default function HomePage() {
   const [lastGroupUrl, setLastGroupUrl] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("");
 
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(true);
+  const [showLocationForm, setShowLocationForm] = useState(false);
+  const [locationName, setLocationName] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
+  const [locationGroupId, setLocationGroupId] = useState("");
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [lastLocationUrl, setLastLocationUrl] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [migratingGroupId, setMigratingGroupId] = useState<string | null>(null);
+
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
       if (!user || user.isAnonymous) {
@@ -88,7 +101,91 @@ export default function HomePage() {
     if (!contractor) return;
     loadProjects(contractor.uid);
     loadGroups(contractor.uid);
+    loadLocations(contractor.uid);
   }, [contractor]);
+
+  async function loadLocations(uid: string) {
+    setLoadingLocations(true);
+    try {
+      const locationsQuery = query(
+        collection(db, "locations"),
+        where("contractorUid", "==", uid),
+        orderBy("createdAt", "desc")
+      );
+      const snapshot = await getDocs(locationsQuery);
+      setLocations(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Location)
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingLocations(false);
+    }
+  }
+
+  async function createLocation(event: FormEvent) {
+    event.preventDefault();
+    setLocationError("");
+    setLastLocationUrl("");
+
+    if (!contractor) return;
+    if (!locationName.trim()) {
+      setLocationError("Give the location a name (e.g. the site or store name).");
+      return;
+    }
+
+    try {
+      setLocationBusy(true);
+      const location = await addDoc(collection(db, "locations"), {
+        name: locationName.trim(),
+        address: locationAddress.trim() || null,
+        groupId: locationGroupId || null,
+        contractorUid: contractor.uid,
+        roundIds: [],
+        createdAt: serverTimestamp()
+      });
+
+      if (locationGroupId) {
+        await updateDoc(doc(db, "groups", locationGroupId), {
+          locationIds: arrayUnion(location.id)
+        });
+      }
+
+      setLocationName("");
+      setLocationAddress("");
+      setLocationGroupId("");
+      setLastLocationUrl(`${window.location.origin}/location/${location.id}`);
+      loadLocations(contractor.uid);
+      if (locationGroupId) loadGroups(contractor.uid);
+    } catch (err) {
+      console.error(err);
+      setLocationError("Couldn't create the location. Please try again.");
+    } finally {
+      setLocationBusy(false);
+    }
+  }
+
+  async function handleMigrateGroup(groupId: string) {
+    const confirmed = confirm(
+      "Convert this group's existing punch lists into Locations, each becoming \"Round 1\"? Safe to run, and safe to run twice."
+    );
+    if (!confirmed) return;
+
+    setMigratingGroupId(groupId);
+    try {
+      await migrateGroupToLocations(groupId);
+      if (contractor) {
+        await loadGroups(contractor.uid);
+        await loadLocations(contractor.uid);
+        await loadProjects(contractor.uid);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Migration failed. Please try again.");
+    } finally {
+      setMigratingGroupId(null);
+    }
+  }
 
   async function loadGroups(uid: string) {
     setLoadingGroups(true);
@@ -197,12 +294,18 @@ export default function HomePage() {
         address: address.trim(),
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
-        groupId: selectedGroupId || null,
+        groupId: selectedLocationId ? null : selectedGroupId || null,
+        locationId: selectedLocationId || null,
+        roundLabel: selectedLocationId ? "Round 1" : null,
         status: "open" as ProjectStatus,
         createdAt: serverTimestamp()
       });
 
-      if (selectedGroupId) {
+      if (selectedLocationId) {
+        await updateDoc(doc(db, "locations", selectedLocationId), {
+          roundIds: arrayUnion(project.id)
+        });
+      } else if (selectedGroupId) {
         await updateDoc(doc(db, "groups", selectedGroupId), {
           projectIds: arrayUnion(project.id)
         });
@@ -213,6 +316,7 @@ export default function HomePage() {
       setAddress("");
       setLastProjectUrl(`${window.location.origin}/project/${project.id}`);
       loadProjects(contractor.uid);
+      if (selectedLocationId) loadLocations(contractor.uid);
     } catch (err) {
       console.error(err);
       setError("Couldn't create the punch list. Check your Firebase configuration.");
@@ -358,8 +462,8 @@ export default function HomePage() {
                 <div>
                   <strong style={{ fontSize: 14 }}>{group.name}</strong>
                   <div className="small">
-                    {group.projectIds?.length || 0} location
-                    {group.projectIds?.length === 1 ? "" : "s"}
+                    {group.locationIds?.length || 0} location
+                    {group.locationIds?.length === 1 ? "" : "s"}
                   </div>
                 </div>
                 <div className="row">
@@ -385,6 +489,18 @@ export default function HomePage() {
                   >
                     Copy manager link
                   </button>
+                  {(group.projectIds?.length || 0) > 0 && (
+                    <button
+                      className="btn btn-secondary row"
+                      style={{ fontSize: 12 }}
+                      disabled={migratingGroupId === group.id}
+                      onClick={() => handleMigrateGroup(group.id)}
+                      title="Convert this group's direct punch lists into Locations"
+                    >
+                      <RefreshCw size={13} />
+                      {migratingGroupId === group.id ? "Migrating..." : "Migrate to Locations"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -470,6 +586,118 @@ export default function HomePage() {
                 Copy manager link
               </button>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="card stack">
+        <div className="row">
+          <MapPin size={20} />
+          <div>
+            <strong>Locations (places with multiple rounds)</strong>
+            <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+              For one place that gets several separate jobs over time (e.g.
+              electrical, then plumbing, then painting). Each round keeps its
+              own items, photos and report — the location link always opens
+              the current one, with past rounds kept as history.
+            </p>
+          </div>
+        </div>
+
+        {!loadingLocations && locations.length > 0 && (
+          <div className="stack">
+            {locations.map((location) => (
+              <div key={location.id} className="row between">
+                <div>
+                  <strong style={{ fontSize: 14 }}>{location.name}</strong>
+                  <div className="small">
+                    {location.roundIds?.length || 0} round
+                    {location.roundIds?.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12 }}
+                  onClick={() =>
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/location/${location.id}`
+                    )
+                  }
+                >
+                  Copy location link
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          className="btn btn-secondary row"
+          onClick={() => setShowLocationForm((value) => !value)}
+        >
+          <Plus size={16} />
+          {showLocationForm ? "Cancel" : "New location"}
+        </button>
+
+        {showLocationForm && (
+          <form className="stack" onSubmit={createLocation}>
+            <label>
+              Location name
+              <input
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
+                placeholder="e.g. Fiorellas Belmont"
+              />
+            </label>
+            <label>
+              Address (optional)
+              <input
+                value={locationAddress}
+                onChange={(e) => setLocationAddress(e.target.value)}
+                placeholder="263 Belmont St, Belmont MA"
+                autoComplete="street-address"
+              />
+            </label>
+            {groups.length > 0 && (
+              <label>
+                Group (optional)
+                <select
+                  value={locationGroupId}
+                  onChange={(e) => setLocationGroupId(e.target.value)}
+                >
+                  <option value="">No group</option>
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {locationError && <div className="error">{locationError}</div>}
+
+            <button className="btn btn-primary btn-wide" disabled={locationBusy}>
+              {locationBusy ? "Creating..." : "Create location"}
+            </button>
+          </form>
+        )}
+
+        {lastLocationUrl && (
+          <div className="notice stack">
+            <strong>Location created.</strong>
+            <span className="small">
+              Share this link — it always opens whatever round is currently
+              active there. Start the first round from the location page, or
+              from the form below with this location selected.
+            </span>
+            <code style={{ wordBreak: "break-all" }}>{lastLocationUrl}</code>
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigator.clipboard.writeText(lastLocationUrl)}
+            >
+              Copy link
+            </button>
           </div>
         )}
       </section>
@@ -621,7 +849,24 @@ export default function HomePage() {
                 />
               </label>
 
-              {groups.length > 0 && (
+              {locations.length > 0 && (
+                <label>
+                  Location (optional — for places with multiple rounds)
+                  <select
+                    value={selectedLocationId}
+                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                  >
+                    <option value="">No location — standalone punch list</option>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {groups.length > 0 && !selectedLocationId && (
                 <label>
                   Group (optional)
                   <select

@@ -5,12 +5,12 @@ import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
 import { MapPin } from "lucide-react";
 import { db, ensureAnonymousAuth } from "@/lib/firebase";
-import type { Group, Project } from "@/lib/types";
+import type { Group, Location } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
 
 type LocationName = {
   id: string;
-  customerName: string;
+  name: string;
 };
 
 export default function GroupSelectPage({
@@ -35,15 +35,15 @@ export default function GroupSelectPage({
       const groupData = { id: groupSnap.id, ...groupSnap.data() } as Group;
       setGroup(groupData);
 
-      const projectIds = groupData.projectIds || [];
+      const locationIds = groupData.locationIds || [];
       const names = await Promise.all(
-        projectIds.map(async (projectId) => {
-          const projectSnap = await getDoc(doc(db, "projects", projectId));
-          if (!projectSnap.exists()) return null;
-          const data = projectSnap.data() as Project;
+        locationIds.map(async (locationId) => {
+          const locationSnap = await getDoc(doc(db, "locations", locationId));
+          if (!locationSnap.exists()) return null;
+          const data = locationSnap.data() as Location;
           return {
-            id: projectSnap.id,
-            customerName: data.customerName || "Untitled location"
+            id: locationSnap.id,
+            name: data.name || "Untitled location"
           };
         })
       );
@@ -51,7 +51,7 @@ export default function GroupSelectPage({
       setLocations(
         names
           .filter((n): n is LocationName => n !== null)
-          .sort((a, b) => a.customerName.localeCompare(b.customerName))
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
       setLoading(false);
     }
@@ -92,12 +92,12 @@ export default function GroupSelectPage({
             {locations.map((loc) => (
               <Link
                 key={loc.id}
-                href={`/project/${loc.id}`}
+                href={`/location/${loc.id}`}
                 className="btn btn-secondary row"
                 style={{ justifyContent: "flex-start" }}
               >
                 <MapPin size={16} />
-                {loc.customerName}
+                {loc.name}
               </Link>
             ))}
           </div>

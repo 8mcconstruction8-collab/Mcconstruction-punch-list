@@ -5,12 +5,14 @@ import Link from "next/link";
 import { collection, doc, getCountFromServer, getDoc, where, query } from "firebase/firestore";
 import { Search } from "lucide-react";
 import { db, ensureAnonymousAuth, watchAuthState } from "@/lib/firebase";
-import type { Group, Project } from "@/lib/types";
+import type { Group, Location, Project } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
 
-type LocationSummary = Project & {
+type LocationSummary = Location & {
   itemCount: number;
   completedCount: number;
+  hasOpenRound: boolean;
+  roundCount: number;
 };
 
 export default function GroupPage({
@@ -36,28 +38,46 @@ export default function GroupPage({
       const groupData = { id: groupSnap.id, ...groupSnap.data() } as Group;
       setGroup(groupData);
 
-      const projectIds = groupData.projectIds || [];
+      const locationIds = groupData.locationIds || [];
       const withCounts = await Promise.all(
-        projectIds.map(async (projectId) => {
-          const projectSnap = await getDoc(doc(db, "projects", projectId));
-          if (!projectSnap.exists()) return null;
+        locationIds.map(async (locationId) => {
+          const locationSnap = await getDoc(doc(db, "locations", locationId));
+          if (!locationSnap.exists()) return null;
+          const locationData = { id: locationSnap.id, ...locationSnap.data() } as Location;
 
-          const itemsRef = collection(db, "projects", projectId, "items");
-          const [totalSnap, completedSnap] = await Promise.all([
-            getCountFromServer(itemsRef),
-            getCountFromServer(query(itemsRef, where("status", "==", "completed")))
-          ]);
+          const roundIds = locationData.roundIds || [];
+          let itemCount = 0;
+          let completedCount = 0;
+          let hasOpenRound = false;
+
+          await Promise.all(
+            roundIds.map(async (roundId) => {
+              const roundSnap = await getDoc(doc(db, "projects", roundId));
+              if (!roundSnap.exists()) return;
+              const round = roundSnap.data() as Project;
+              if (round.status !== "closed") hasOpenRound = true;
+
+              const itemsRef = collection(db, "projects", roundId, "items");
+              const [totalSnap, completedSnap] = await Promise.all([
+                getCountFromServer(itemsRef),
+                getCountFromServer(query(itemsRef, where("status", "==", "completed")))
+              ]);
+              itemCount += totalSnap.data().count;
+              completedCount += completedSnap.data().count;
+            })
+          );
 
           return {
-            id: projectSnap.id,
-            ...projectSnap.data(),
-            itemCount: totalSnap.data().count,
-            completedCount: completedSnap.data().count
+            ...locationData,
+            itemCount,
+            completedCount,
+            hasOpenRound,
+            roundCount: roundIds.length
           } as LocationSummary;
         })
       );
 
-      setLocations(withCounts.filter((p): p is LocationSummary => p !== null));
+      setLocations(withCounts.filter((l): l is LocationSummary => l !== null));
       setLoading(false);
     }
 
@@ -78,7 +98,7 @@ export default function GroupPage({
     const term = search.trim().toLowerCase();
     if (!term) return true;
     return (
-      (loc.customerName || "").toLowerCase().includes(term) ||
+      (loc.name || "").toLowerCase().includes(term) ||
       (loc.address || "").toLowerCase().includes(term)
     );
   });
@@ -154,17 +174,17 @@ export default function GroupPage({
             return (
               <Link
                 key={loc.id}
-                href={`/project/${loc.id}`}
+                href={`/location/${loc.id}`}
                 className="card project-row"
                 style={{ display: "block", marginTop: 12 }}
               >
                 <div className="row between">
                   <div>
-                    <strong>{loc.customerName || "Waiting for info"}</strong>
-                    <div className="small">{loc.address || "Address pending"}</div>
+                    <strong>{loc.name}</strong>
+                    <div className="small">{loc.address || "No address on file"}</div>
                   </div>
-                  {loc.status === "closed" ? (
-                    <span className="badge badge-neutral">Closed</span>
+                  {!loc.hasOpenRound ? (
+                    <span className="badge badge-neutral">No open round</span>
                   ) : openCount > 0 ? (
                     <span className="badge badge-open">{openCount} open</span>
                   ) : (
@@ -172,7 +192,8 @@ export default function GroupPage({
                   )}
                 </div>
                 <p className="small" style={{ marginTop: 8, marginBottom: 0 }}>
-                  {loc.completedCount} of {loc.itemCount} items completed ({percent}%)
+                  {loc.completedCount} of {loc.itemCount} items completed ({percent}%) ·{" "}
+                  {loc.roundCount} round{loc.roundCount === 1 ? "" : "s"}
                 </p>
               </Link>
             );

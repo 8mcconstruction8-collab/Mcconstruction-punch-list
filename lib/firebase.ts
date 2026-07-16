@@ -8,6 +8,7 @@ import {
   type User
 } from "firebase/auth";
 import {
+  addDoc,
   arrayRemove,
   collection,
   deleteDoc,
@@ -18,6 +19,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  serverTimestamp,
   updateDoc
 } from "firebase/firestore";
 import {
@@ -138,4 +140,46 @@ export async function deleteProjectCompletely(projectId: string) {
       projectIds: arrayRemove(projectId)
     });
   }
+}
+
+/**
+ * One-time migration: turns a group's directly-attached projects into
+ * proper Locations, each starting with its existing project as "Round 1".
+ * Safe to run more than once — any project that already has a
+ * locationId is skipped, so nothing gets duplicated.
+ */
+export async function migrateGroupToLocations(groupId: string) {
+  const groupSnap = await getDoc(doc(db, "groups", groupId));
+  if (!groupSnap.exists()) throw new Error("Group not found");
+  const group = groupSnap.data();
+  const projectIds: string[] = group.projectIds || [];
+  const newLocationIds: string[] = [...(group.locationIds || [])];
+
+  for (const projectId of projectIds) {
+    const projectSnap = await getDoc(doc(db, "projects", projectId));
+    if (!projectSnap.exists()) continue;
+    const project = projectSnap.data();
+    if (project.locationId) continue;
+
+    const locationDoc = await addDoc(collection(db, "locations"), {
+      name: project.customerName || "Untitled location",
+      address: project.address || "",
+      groupId,
+      contractorUid: project.contractorUid,
+      roundIds: [projectId],
+      createdAt: serverTimestamp()
+    });
+
+    await updateDoc(doc(db, "projects", projectId), {
+      locationId: locationDoc.id,
+      roundLabel: "Round 1"
+    });
+
+    newLocationIds.push(locationDoc.id);
+  }
+
+  await updateDoc(doc(db, "groups", groupId), {
+    locationIds: newLocationIds,
+    projectIds: []
+  });
 }
