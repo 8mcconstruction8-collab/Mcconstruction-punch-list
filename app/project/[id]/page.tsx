@@ -31,6 +31,7 @@ import {
   type PunchPriority
 } from "@/lib/types";
 import PunchItemCard from "@/components/PunchItemCard";
+import BrandFooter from "@/components/BrandFooter";
 
 export default function ProjectPage({
   params
@@ -50,6 +51,11 @@ export default function ProjectPage({
   const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [intakeName, setIntakeName] = useState("");
+  const [intakeEmail, setIntakeEmail] = useState("");
+  const [intakeAddress, setIntakeAddress] = useState("");
+  const [savingIntake, setSavingIntake] = useState(false);
+  const [intakeError, setIntakeError] = useState("");
 
   useEffect(() => {
     const unsubscribeAuth = watchAuthState(async (authUser) => {
@@ -139,6 +145,30 @@ export default function ProjectPage({
     }
   }
 
+  async function saveIntake(event: FormEvent) {
+    event.preventDefault();
+    setIntakeError("");
+
+    if (!intakeName.trim() || !intakeAddress.trim()) {
+      setIntakeError("Please fill in at least your name and the job site address.");
+      return;
+    }
+
+    setSavingIntake(true);
+    try {
+      await updateDoc(doc(db, "projects", projectId), {
+        customerName: intakeName.trim(),
+        customerEmail: intakeEmail.trim() || null,
+        address: intakeAddress.trim()
+      });
+    } catch (err) {
+      console.error(err);
+      setIntakeError("Couldn't save. Please try again.");
+    } finally {
+      setSavingIntake(false);
+    }
+  }
+
   async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
     alert("Punch list link copied.");
@@ -149,7 +179,7 @@ export default function ProjectPage({
     const nextStatus = project.status === "closed" ? "open" : "closed";
     if (
       nextStatus === "closed" &&
-      !confirm("Encerrar esta punch list? O cliente não poderá mais adicionar itens ou fotos.")
+      !confirm("Close this punch list? The customer will no longer be able to add items or photos.")
     ) {
       return;
     }
@@ -167,13 +197,79 @@ export default function ProjectPage({
     return <main className="shell loading">Project not found.</main>;
   }
 
+  const needsCustomerInfo =
+    !isContractor && (!project.customerName?.trim() || !project.address?.trim());
+
+  if (needsCustomerInfo) {
+    return (
+      <main className="shell">
+        <header className="brand">
+          <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
+          <div>
+            <h1>Rounds</h1>
+            
+          </div>
+        </header>
+
+        <section className="card stack">
+          <div>
+            <h2 style={{ marginBottom: 4 }}>Welcome</h2>
+            <p className="small">
+              Before we get started, we need a few details about you and the job site.
+            </p>
+          </div>
+
+          <form className="stack" onSubmit={saveIntake}>
+            <label>
+              Your name
+              <input
+                value={intakeName}
+                onChange={(e) => setIntakeName(e.target.value)}
+                placeholder="Ex.: John Smith"
+                autoComplete="name"
+              />
+            </label>
+
+            <label>
+              Email (optional)
+              <input
+                type="email"
+                value={intakeEmail}
+                onChange={(e) => setIntakeEmail(e.target.value)}
+                placeholder="you@email.com"
+                autoComplete="email"
+              />
+            </label>
+
+            <label>
+              Job site address
+              <input
+                value={intakeAddress}
+                onChange={(e) => setIntakeAddress(e.target.value)}
+                placeholder="Ex.: 123 Main St, Worcester, MA"
+                autoComplete="street-address"
+              />
+            </label>
+
+            {intakeError && <div className="error">{intakeError}</div>}
+
+            <button className="btn btn-primary btn-wide" disabled={savingIntake}>
+              {savingIntake ? "Saving..." : "Continue"}
+            </button>
+          </form>
+        </section>
+        <BrandFooter />
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header className="brand">
-        <div className="logo">MC</div>
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
-          <h1>MC Punch List</h1>
-          <p>Project closeout management</p>
+          <h1>Rounds</h1>
+          
         </div>
       </header>
 
@@ -181,12 +277,14 @@ export default function ProjectPage({
         <div className="row between">
           <div>
             <div className="row">
-              <h2 style={{ margin: 0 }}>{project.customerName}</h2>
+              <h2 style={{ margin: 0 }}>
+                {project.customerName || "Waiting for customer info"}
+              </h2>
               {project.status === "closed" && (
                 <span className="badge badge-neutral">Closed</span>
               )}
             </div>
-            <p>{project.address}</p>
+            <p>{project.address || "Address pending"}</p>
           </div>
           <div className="row">
             <Link href={`/project/${projectId}/report`} className="btn btn-secondary row">
@@ -242,7 +340,7 @@ export default function ProjectPage({
               ) : (
                 <>
                   <Lock size={16} />
-                  Encerrar
+                  Close
                 </>
               )}
             </button>
@@ -360,6 +458,7 @@ export default function ProjectPage({
           ))
         )}
       </section>
+      <BrandFooter />
     </main>
   );
 }

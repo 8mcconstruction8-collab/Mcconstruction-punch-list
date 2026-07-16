@@ -26,6 +26,7 @@ import {
   type PunchStatus
 } from "@/lib/types";
 import SignaturePad from "@/components/SignaturePad";
+import BrandFooter from "@/components/BrandFooter";
 
 const statusLabel: Record<PunchStatus, string> = {
   open: "Open",
@@ -140,11 +141,11 @@ export default function ReportPage({
       </div>
 
       <header className="report-header">
-        <div className="logo">MC</div>
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
           <h1 style={{ margin: 0 }}>{project.contractorName}</h1>
           <p className="small" style={{ margin: 0 }}>
-            Punch List — Final Report
+            Rounds — Final Report
           </p>
         </div>
       </header>
@@ -265,6 +266,7 @@ export default function ReportPage({
           />
         </div>
       </section>
+      <BrandFooter />
     </main>
   );
 }

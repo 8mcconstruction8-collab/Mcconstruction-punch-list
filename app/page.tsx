@@ -1,27 +1,33 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   addDoc,
+  arrayUnion,
   collection,
+  doc,
   getCountFromServer,
+  getDoc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
   where
 } from "firebase/firestore";
-import { ClipboardCheck, LogOut, Plus, Search } from "lucide-react";
+import { Building2, ClipboardCheck, LogOut, Plus, Search, Trash2 } from "lucide-react";
 import {
   checkIsContractor,
   db,
+  deleteProjectCompletely,
   signOutContractor,
   watchAuthState
 } from "@/lib/firebase";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Group, Project, ProjectStatus } from "@/lib/types";
 import type { User } from "firebase/auth";
+import BrandFooter from "@/components/BrandFooter";
 
 type ProjectSummary = Project & {
   itemCount: number;
@@ -44,6 +50,18 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [lastProjectUrl, setLastProjectUrl] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [groupBusy, setGroupBusy] = useState(false);
+  const [groupError, setGroupError] = useState("");
+  const [lastGroupUrl, setLastGroupUrl] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
 
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
@@ -68,7 +86,62 @@ export default function HomePage() {
   useEffect(() => {
     if (!contractor) return;
     loadProjects(contractor.uid);
+    loadGroups(contractor.uid);
   }, [contractor]);
+
+  async function loadGroups(uid: string) {
+    setLoadingGroups(true);
+    try {
+      const groupsQuery = query(
+        collection(db, "groups"),
+        where("contractorUid", "==", uid),
+        orderBy("createdAt", "desc")
+      );
+      const snapshot = await getDocs(groupsQuery);
+      setGroups(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Group)
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  }
+
+  async function createGroup(event: FormEvent) {
+    event.preventDefault();
+    setGroupError("");
+    setLastGroupUrl("");
+
+    if (!contractor) return;
+    if (!groupName.trim()) {
+      setGroupError("Give the group a name (e.g. the company or owner's name).");
+      return;
+    }
+
+    try {
+      setGroupBusy(true);
+      const group = await addDoc(collection(db, "groups"), {
+        name: groupName.trim(),
+        ownerName: ownerName.trim() || null,
+        ownerEmail: ownerEmail.trim() || null,
+        contractorUid: contractor.uid,
+        projectIds: [],
+        createdAt: serverTimestamp()
+      });
+
+      setGroupName("");
+      setOwnerName("");
+      setOwnerEmail("");
+      setLastGroupUrl(`${window.location.origin}/group/${group.id}`);
+      loadGroups(contractor.uid);
+    } catch (err) {
+      console.error(err);
+      setGroupError("Couldn't create the group. Please try again.");
+    } finally {
+      setGroupBusy(false);
+    }
+  }
 
   async function loadProjects(uid: string) {
     setLoadingProjects(true);
@@ -115,11 +188,6 @@ export default function HomePage() {
 
     if (!contractor) return;
 
-    if (!customerName.trim() || !address.trim()) {
-      setError("Preencha o nome do cliente e o endereço da obra.");
-      return;
-    }
-
     try {
       setBusy(true);
       const project = await addDoc(collection(db, "projects"), {
@@ -128,9 +196,16 @@ export default function HomePage() {
         address: address.trim(),
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
+        groupId: selectedGroupId || null,
         status: "open" as ProjectStatus,
         createdAt: serverTimestamp()
       });
+
+      if (selectedGroupId) {
+        await updateDoc(doc(db, "groups", selectedGroupId), {
+          projectIds: arrayUnion(project.id)
+        });
+      }
 
       setCustomerName("");
       setCustomerEmail("");
@@ -139,9 +214,55 @@ export default function HomePage() {
       loadProjects(contractor.uid);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível criar a punch list. Confira a configuração do Firebase.");
+      setError("Couldn't create the punch list. Check your Firebase configuration.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleDelete(
+    event: MouseEvent,
+    project: ProjectSummary
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!contractor) return;
+
+    const label = project.customerName || "this unnamed project";
+    const confirmed = confirm(
+      `Delete "${label}" forever? This removes every item and photo. This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(project.id);
+    try {
+      await deleteProjectCompletely(project.id);
+      setProjects((current) => current.filter((p) => p.id !== project.id));
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't delete. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleAssignGroup(projectId: string, groupId: string) {
+    try {
+      await updateDoc(doc(db, "projects", projectId), {
+        groupId: groupId || null
+      });
+      if (groupId) {
+        await updateDoc(doc(db, "groups", groupId), {
+          projectIds: arrayUnion(projectId)
+        });
+      }
+      setProjects((current) =>
+        current.map((p) => (p.id === projectId ? { ...p, groupId: groupId || undefined } : p))
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't update the group for this project.");
     }
   }
 
@@ -161,10 +282,10 @@ export default function HomePage() {
   return (
     <main className="shell">
       <header className="brand">
-        <div className="logo">MC</div>
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
-          <h1>MC Punch List</h1>
-          <p>Project closeout management</p>
+          <h1>Rounds</h1>
+          
         </div>
         <button
           className="btn btn-secondary row"
@@ -178,6 +299,165 @@ export default function HomePage() {
           Sign out
         </button>
       </header>
+
+      <section className="card stack">
+        <div>
+          <strong>Fixed link for new customers</strong>
+          <p className="small" style={{ marginTop: 4 }}>
+            Always the same link — send it to any new customer. Whoever
+            opens it gets their own punch list created automatically and
+            fills in their own details.
+          </p>
+        </div>
+        <code style={{ wordBreak: "break-all" }}>
+          {typeof window !== "undefined" ? `${window.location.origin}/start` : "/start"}
+        </code>
+        <button
+          className="btn btn-secondary"
+          onClick={() =>
+            navigator.clipboard.writeText(`${window.location.origin}/start`)
+          }
+        >
+          Copy fixed link
+        </button>
+      </section>
+
+      <section className="card stack">
+        <div className="row">
+          <Building2 size={20} />
+          <div>
+            <strong>Groups (owners with multiple locations)</strong>
+            <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+              For customers with more than one job site. Two links per group:
+              one for the owner, showing every location together — and one
+              shared link for all managers, where each picks their own
+              location before starting its punch list.
+            </p>
+          </div>
+        </div>
+
+        {!loadingGroups && groups.length > 0 && (
+          <div className="stack">
+            {groups.map((group) => (
+              <div key={group.id} className="row between">
+                <div>
+                  <strong style={{ fontSize: 14 }}>{group.name}</strong>
+                  <div className="small">
+                    {group.projectIds?.length || 0} location
+                    {group.projectIds?.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <div className="row">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12 }}
+                    onClick={() =>
+                      navigator.clipboard.writeText(
+                        `${window.location.origin}/group/${group.id}`
+                      )
+                    }
+                  >
+                    Copy owner link
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12 }}
+                    onClick={() =>
+                      navigator.clipboard.writeText(
+                        `${window.location.origin}/group/${group.id}/select`
+                      )
+                    }
+                  >
+                    Copy manager link
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          className="btn btn-secondary row"
+          onClick={() => setShowGroupForm((value) => !value)}
+        >
+          <Plus size={16} />
+          {showGroupForm ? "Cancel" : "New group"}
+        </button>
+
+        {showGroupForm && (
+          <form className="stack" onSubmit={createGroup}>
+            <label>
+              Group name
+              <input
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="e.g. Rossi Hospitality Group"
+              />
+            </label>
+            <label>
+              Owner name (optional)
+              <input
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="e.g. Marco Rossi"
+                autoComplete="name"
+              />
+            </label>
+            <label>
+              Owner email (optional)
+              <input
+                type="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+                placeholder="owner@email.com"
+                autoComplete="email"
+              />
+            </label>
+
+            {groupError && <div className="error">{groupError}</div>}
+
+            <button className="btn btn-primary btn-wide" disabled={groupBusy}>
+              {groupBusy ? "Creating..." : "Create group"}
+            </button>
+          </form>
+        )}
+
+        {lastGroupUrl && (
+          <div className="notice stack">
+            <strong>Group created.</strong>
+            <span className="small">
+              Assign locations to it below, or from each project's card in
+              the list. Two links to send out:
+            </span>
+            <div>
+              <p className="small" style={{ margin: "0 0 4px" }}>
+                Owner (sees every location):
+              </p>
+              <code style={{ wordBreak: "break-all" }}>{lastGroupUrl}</code>
+              <button
+                className="btn btn-secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => navigator.clipboard.writeText(lastGroupUrl)}
+              >
+                Copy owner link
+              </button>
+            </div>
+            <div>
+              <p className="small" style={{ margin: "0 0 4px" }}>
+                Managers (pick their own location, one link for everyone):
+              </p>
+              <code style={{ wordBreak: "break-all" }}>{lastGroupUrl}/select</code>
+              <button
+                className="btn btn-secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => navigator.clipboard.writeText(`${lastGroupUrl}/select`)}
+              >
+                Copy manager link
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="card stack">
         <label style={{ margin: 0 }}>
@@ -218,12 +498,23 @@ export default function HomePage() {
               >
                 <div className="row between">
                   <div>
-                    <strong>{project.customerName}</strong>
-                    <div className="small">{project.address}</div>
+                    <strong>{project.customerName || "Waiting for customer info"}</strong>
+                    <div className="small">{project.address || "Address pending"}</div>
                   </div>
-                  {project.status === "closed" && (
-                    <span className="badge badge-neutral">Closed</span>
-                  )}
+                  <div className="row">
+                    {project.status === "closed" && (
+                      <span className="badge badge-neutral">Closed</span>
+                    )}
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: "6px 8px" }}
+                      disabled={deletingId === project.id}
+                      onClick={(e) => handleDelete(e, project)}
+                      title="Delete permanently"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
                 <p className="small" style={{ marginTop: 8, marginBottom: 4 }}>
                   {project.completedCount} of {project.itemCount} items completed (
@@ -233,6 +524,24 @@ export default function HomePage() {
                   <p className="small" style={{ margin: 0 }}>
                     Created {project.createdAt.toDate().toLocaleDateString()}
                   </p>
+                )}
+                {groups.length > 0 && (
+                  <select
+                    value={project.groupId || ""}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onChange={(e) => handleAssignGroup(project.id, e.target.value)}
+                    style={{ marginTop: 8, fontSize: 12, padding: "6px 8px" }}
+                  >
+                    <option value="">No group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </Link>
             );
@@ -246,74 +555,96 @@ export default function HomePage() {
           onClick={() => setShowForm((value) => !value)}
         >
           <Plus size={16} />
-          {showForm ? "Cancel" : "New punch list"}
+          {showForm ? "Cancel" : "Or create a punch list manually"}
         </button>
 
         {showForm && (
           <>
             <div>
               <ClipboardCheck size={30} />
-              <h2 style={{ marginBottom: 4 }}>Nova punch list</h2>
+              <h2 style={{ marginBottom: 4 }}>New punch list</h2>
               <p className="small">
-                Cadastre o cliente e a obra para começar a lista de correções.
+                If you already know the customer's info, fill it in below. Or
+                leave it blank and generate the link right away — the
+                customer fills in their own name, email and address the
+                first time they open it (handy for customers with more
+                than one job site).
               </p>
             </div>
 
             <form className="stack" onSubmit={createProject}>
               <label>
-                Nome do cliente
+                Customer name (optional)
                 <input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Ex.: John Smith"
+                  placeholder="Leave blank for the customer to fill in"
                   autoComplete="name"
                 />
               </label>
 
               <label>
-                E-mail do cliente (opcional)
+                Customer email (optional)
                 <input
                   type="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="cliente@email.com"
+                  placeholder="customer@email.com"
                   autoComplete="email"
                 />
               </label>
 
               <label>
-                Endereço da obra
+                Job site address (optional)
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ex.: 123 Main St, Worcester, MA"
+                  placeholder="Leave blank for the customer to fill in"
                   autoComplete="street-address"
                 />
               </label>
 
+              {groups.length > 0 && (
+                <label>
+                  Group (optional)
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                  >
+                    <option value="">No group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
               {error && <div className="error">{error}</div>}
 
               <button className="btn btn-primary btn-wide" disabled={busy}>
-                {busy ? "Criando..." : "Criar punch list"}
+                {busy ? "Creating..." : "Create punch list & generate link"}
               </button>
             </form>
 
             {lastProjectUrl && (
               <div className="notice stack">
-                <strong>Punch list criada.</strong>
-                <span className="small">Envie este link para o cliente:</span>
+                <strong>Punch list created.</strong>
+                <span className="small">Send this link to the customer:</span>
                 <code style={{ wordBreak: "break-all" }}>{lastProjectUrl}</code>
                 <button
                   className="btn btn-secondary"
                   onClick={() => navigator.clipboard.writeText(lastProjectUrl)}
                 >
-                  Copiar link
+                  Copy link
                 </button>
               </div>
             )}
           </>
         )}
       </section>
+      <BrandFooter />
     </main>
   );
 }

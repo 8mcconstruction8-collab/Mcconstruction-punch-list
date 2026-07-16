@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { signInContractor } from "@/lib/firebase";
+import BrandFooter from "@/components/BrandFooter";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,9 +37,9 @@ export default function LoginPage() {
   return (
     <main className="shell">
       <header className="brand">
-        <div className="logo">MC</div>
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
-          <h1>MC Punch List</h1>
+          <h1>Rounds</h1>
           <p>Contractor sign in</p>
         </div>
       </header>
@@ -82,6 +83,7 @@ export default function LoginPage() {
           </button>
         </form>
       </section>
+      <BrandFooter />
     </main>
   );
 }

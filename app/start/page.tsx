@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db, ensureAnonymousAuth } from "@/lib/firebase";
 import type { ProjectStatus } from "@/lib/types";
+import BrandFooter from "@/components/BrandFooter";
 
 const DEFAULT_CONTRACTOR_UID = process.env.NEXT_PUBLIC_DEFAULT_CONTRACTOR_UID;
 
@@ -45,10 +46,10 @@ export default function StartPage() {
   return (
     <main className="shell">
       <header className="brand">
-        <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
-          <h1>MC Punch List</h1>
-          <p>Project closeout management</p>
+          <h1>Rounds</h1>
+          
         </div>
       </header>
 
@@ -59,6 +60,7 @@ export default function StartPage() {
           <p>Setting up your punch list...</p>
         )}
       </section>
+      <BrandFooter />
     </main>
   );
 }

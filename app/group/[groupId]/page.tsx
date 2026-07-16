@@ -6,6 +6,7 @@ import { collection, doc, getCountFromServer, getDoc, where, query } from "fireb
 import { Search } from "lucide-react";
 import { db, ensureAnonymousAuth, watchAuthState } from "@/lib/firebase";
 import type { Group, Project } from "@/lib/types";
+import BrandFooter from "@/components/BrandFooter";
 
 type LocationSummary = Project & {
   itemCount: number;
@@ -101,9 +102,9 @@ export default function GroupPage({
   return (
     <main className="shell">
       <header className="brand">
-        <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
+        <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
         <div>
-          <h1>MC Punch List</h1>
+          <h1>Rounds</h1>
           <p>{group.name}</p>
         </div>
       </header>
@@ -178,6 +179,7 @@ export default function GroupPage({
           })
         )}
       </section>
+      <BrandFooter />
     </main>
   );
 }
