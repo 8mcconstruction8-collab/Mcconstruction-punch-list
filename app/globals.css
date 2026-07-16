@@ -35,10 +35,15 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 24px;
 }
 .logo {
+  display: grid;
+  place-items: center;
   width: 48px;
   height: 48px;
-  object-fit: contain;
-  flex-shrink: 0;
+  border-radius: 14px;
+  color: white;
+  background: linear-gradient(145deg, #111, #444);
+  font-weight: 900;
+  letter-spacing: -1px;
 }
 .brand h1 { margin: 0; font-size: 22px; }
 .brand p { margin: 3px 0 0; color: #666; font-size: 13px; }
@@ -136,21 +141,6 @@ textarea { min-height: 105px; resize: vertical; }
 .badge-priority-medium { background: #fef3c7; color: #92400e; }
 .badge-priority-high { background: #fee2e2; color: #991b1b; }
 
-.summary-strip {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
-}
-.summary-card {
-  background: var(--black);
-  color: white;
-  border-radius: var(--radius);
-  padding: 16px;
-}
-.summary-card .num { font-size: 24px; font-weight: 900; }
-.summary-card .label { font-size: 11px; color: #b8b8b8; margin-top: 2px; }
-
 .project-row { transition: transform .1s ease, box-shadow .15s ease; }
 .project-row:hover { box-shadow: 0 10px 30px rgba(0,0,0,.09); }
 
@@ -170,17 +160,6 @@ textarea { min-height: 105px; resize: vertical; }
 .empty { padding: 30px 15px; text-align: center; color: #666; }
 .loading { padding: 50px 0; text-align: center; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
-.offline-banner {
-  background: #3a2a00;
-  color: #ffd479;
-  padding: 10px 16px;
-  font-size: 13px;
-  justify-content: center;
-  text-align: center;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
 .notice {
   background: #fff8e5;
   border: 1px solid #f1d28a;

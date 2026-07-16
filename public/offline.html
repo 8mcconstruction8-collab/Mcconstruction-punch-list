@@ -18,10 +18,16 @@
       text-align: center;
     }
     .logo {
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
       margin: 0 auto 16px;
-      object-fit: contain;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #111, #444);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      letter-spacing: -1px;
     }
     h1 { font-size: 20px; margin: 0 0 8px; }
     p { color: #555; font-size: 14px; max-width: 320px; margin: 0 auto; }
@@ -39,7 +45,7 @@
 </head>
 <body>
   <div>
-    <img class="logo" src="/brand/logo-mark.png" alt="MC Construction" />
+    <div class="logo">MC</div>
     <h1>You're offline</h1>
     <p>MC Punch List needs an internet connection to load or save project data. Reconnect and try again.</p>
     <button onclick="window.location.reload()">Retry</button>

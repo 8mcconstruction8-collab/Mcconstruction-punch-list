@@ -140,7 +140,7 @@ export default function ReportPage({
       </div>
 
       <header className="report-header">
-        <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
+        <div className="logo">MC</div>
         <div>
           <h1 style={{ margin: 0 }}>{project.contractorName}</h1>
           <p className="small" style={{ margin: 0 }}>

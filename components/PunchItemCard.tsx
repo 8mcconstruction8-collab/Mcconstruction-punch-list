@@ -105,7 +105,7 @@ export default function PunchItemCard({ item, projectId, mode, projectClosed }: 
   }
 
   async function removeItem() {
-    if (!confirm("Remove this item?")) return;
+    if (!confirm("Deseja remover este item?")) return;
     await deleteDoc(itemRef);
   }
 

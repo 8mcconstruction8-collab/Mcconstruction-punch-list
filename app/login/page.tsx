@@ -36,7 +36,7 @@ export default function LoginPage() {
   return (
     <main className="shell">
       <header className="brand">
-        <img src="/brand/logo-mark.png" alt="MC Construction" className="logo" />
+        <div className="logo">MC</div>
         <div>
           <h1>MC Punch List</h1>
           <p>Contractor sign in</p>

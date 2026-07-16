@@ -9,7 +9,6 @@ export type Project = {
   address: string;
   contractorName: string;
   contractorUid: string;
-  groupId?: string;
   notes?: string;
   status?: ProjectStatus;
   createdAt?: Timestamp;
@@ -20,16 +19,6 @@ export type Project = {
   contractorSignature?: string;
   contractorSignedName?: string;
   contractorSignedAt?: Timestamp;
-};
-
-export type Group = {
-  id: string;
-  name: string;
-  ownerName?: string;
-  ownerEmail?: string;
-  contractorUid: string;
-  projectIds: string[];
-  createdAt?: Timestamp;
 };
 
 export type PunchStatus = "open" | "in_progress" | "completed";
