@@ -205,6 +205,7 @@ export async function migrateGroupToLocations(groupId: string) {
       address: project.address || "",
       groupId,
       contractorUid: project.contractorUid,
+      contractorNotifyEmail: project.contractorNotifyEmail || DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
       roundIds: [projectId],
       createdAt: serverTimestamp()
     });

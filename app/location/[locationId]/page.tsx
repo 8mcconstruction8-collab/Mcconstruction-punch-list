@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 import { Plus } from "lucide-react";
 import {
-  checkIsContractor,
   db,
   DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
   ensureAnonymousAuth,
@@ -39,7 +38,6 @@ export default function LocationPage({
   const router = useRouter();
   const [location, setLocation] = useState<Location | null>(null);
   const [rounds, setRounds] = useState<RoundSummary[]>([]);
-  const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showNewRoundForm, setShowNewRoundForm] = useState(false);
   const [newRoundLabel, setNewRoundLabel] = useState("");
@@ -47,11 +45,7 @@ export default function LocationPage({
 
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
-      const activeUser = user || (await ensureAnonymousAuth());
-      const contractorAccount = activeUser
-        ? await checkIsContractor(activeUser.uid)
-        : false;
-      setIsContractor(contractorAccount);
+      if (!user) await ensureAnonymousAuth();
 
       const locationSnap = await getDoc(doc(db, "locations", locationId));
       if (!locationSnap.exists()) {
@@ -168,32 +162,28 @@ export default function LocationPage({
           </div>
         )}
 
-        {isContractor && (
-          <>
-            <button
-              className="btn btn-secondary row"
-              onClick={() => setShowNewRoundForm((value) => !value)}
-            >
-              <Plus size={16} />
-              {showNewRoundForm ? "Cancel" : "Start new round"}
-            </button>
+        <button
+          className="btn btn-secondary row"
+          onClick={() => setShowNewRoundForm((value) => !value)}
+        >
+          <Plus size={16} />
+          {showNewRoundForm ? "Cancel" : "Start new round"}
+        </button>
 
-            {showNewRoundForm && (
-              <form className="stack" onSubmit={startNewRound}>
-                <label>
-                  What&apos;s this round for?
-                  <input
-                    value={newRoundLabel}
-                    onChange={(e) => setNewRoundLabel(e.target.value)}
-                    placeholder="e.g. Electrical, Plumbing, Painting"
-                  />
-                </label>
-                <button className="btn btn-primary" disabled={starting}>
-                  {starting ? "Starting..." : "Start round"}
-                </button>
-              </form>
-            )}
-          </>
+        {showNewRoundForm && (
+          <form className="stack" onSubmit={startNewRound}>
+            <label>
+              What&apos;s this round for?
+              <input
+                value={newRoundLabel}
+                onChange={(e) => setNewRoundLabel(e.target.value)}
+                placeholder="e.g. Electrical, Plumbing, Painting"
+              />
+            </label>
+            <button className="btn btn-primary" disabled={starting}>
+              {starting ? "Starting..." : "Start round"}
+            </button>
+          </form>
         )}
       </section>
       <BrandFooter />

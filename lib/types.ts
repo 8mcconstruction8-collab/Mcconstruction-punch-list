@@ -31,6 +31,7 @@ export type Location = {
   address?: string;
   groupId?: string;
   contractorUid: string;
+  contractorNotifyEmail?: string;
   roundIds: string[];
   createdAt?: Timestamp;
 };

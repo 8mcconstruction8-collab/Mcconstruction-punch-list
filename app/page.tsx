@@ -143,6 +143,7 @@ export default function HomePage() {
         address: locationAddress.trim() || null,
         groupId: locationGroupId || null,
         contractorUid: contractor.uid,
+        contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
         roundIds: [],
         createdAt: serverTimestamp()
       });

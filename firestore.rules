@@ -39,7 +39,15 @@ service cloud.firestore {
     // belong to one.
     match /locations/{locationId} {
       allow get: if request.auth != null;
-      allow list, create, update, delete: if isContractor();
+      allow list, create, delete: if isContractor();
+
+      // Contractor can change anything. A non-contractor (a manager
+      // starting a new round from their location page) can only ever
+      // touch the roundIds list — never the name, address, group, or
+      // contractor fields.
+      allow update: if isContractor() ||
+        (request.auth != null &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roundIds']));
     }
 
     // Notification emails go through the Firebase "Trigger Email"
@@ -74,12 +82,28 @@ service cloud.firestore {
       // account. This is what lets a fixed link safely spin up a fresh
       // punch list for whoever opens it, without opening the door to
       // arbitrary writes.
+      // Contractor can create any project. A non-contractor can create in
+      // two specific, locked-down cases:
+      // 1. A *blank* project (used by the public /start link) — name and
+      //    address empty, status open, pointed at a real contractor.
+      // 2. A new round at a location they already have the link to —
+      //    must reference a real location, and its contractorUid /
+      //    contractorNotifyEmail must exactly match what's already
+      //    stored on that location, so nobody can point a new round (or
+      //    its notification emails) at a different contractor account.
       allow create: if isContractor() ||
         (request.auth != null &&
           request.resource.data.customerName == '' &&
           request.resource.data.address == '' &&
           request.resource.data.status == 'open' &&
-          exists(/databases/$(database)/documents/contractors/$(request.resource.data.contractorUid)));
+          exists(/databases/$(database)/documents/contractors/$(request.resource.data.contractorUid))) ||
+        (request.auth != null &&
+          request.resource.data.locationId is string &&
+          request.resource.data.status == 'open' &&
+          request.resource.data.contractorUid ==
+            get(/databases/$(database)/documents/locations/$(request.resource.data.locationId)).data.contractorUid &&
+          request.resource.data.contractorNotifyEmail ==
+            get(/databases/$(database)/documents/locations/$(request.resource.data.locationId)).data.contractorNotifyEmail);
 
       allow delete: if isContractor();
 
