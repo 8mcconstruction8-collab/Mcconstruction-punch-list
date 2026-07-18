@@ -18,7 +18,17 @@ import {
   updateDoc,
   where
 } from "firebase/firestore";
-import { Building2, ClipboardCheck, LogOut, MapPin, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  Building2,
+  ChevronDown,
+  ClipboardCheck,
+  LogOut,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2
+} from "lucide-react";
 import {
   checkIsContractor,
   db,
@@ -58,6 +68,7 @@ export default function HomePage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showGroupsPanel, setShowGroupsPanel] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -69,6 +80,7 @@ export default function HomePage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(true);
   const [showLocationForm, setShowLocationForm] = useState(false);
+  const [showLocationsPanel, setShowLocationsPanel] = useState(false);
   const [locationName, setLocationName] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
   const [locationGroupId, setLocationGroupId] = useState("");
@@ -455,14 +467,16 @@ export default function HomePage() {
     return <main className="shell loading">Loading...</main>;
   }
 
-  const filteredProjects = projects.filter((project) => {
-    const term = search.trim().toLowerCase();
-    if (!term) return true;
-    return (
-      project.customerName.toLowerCase().includes(term) ||
-      project.address.toLowerCase().includes(term)
-    );
-  });
+  const filteredProjects = projects
+    .filter((project) => !project.locationId && !project.groupId)
+    .filter((project) => {
+      const term = search.trim().toLowerCase();
+      if (!term) return true;
+      return (
+        project.customerName.toLowerCase().includes(term) ||
+        project.address.toLowerCase().includes(term)
+      );
+    });
 
   return (
     <main className="shell">
@@ -508,20 +522,47 @@ export default function HomePage() {
       </section>
 
       <section className="card stack">
-        <div className="row">
-          <Building2 size={20} />
-          <div>
-            <strong>Groups (owners with multiple locations)</strong>
-            <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+        <button
+          className="row between"
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            width: "100%",
+            textAlign: "left",
+            cursor: "pointer"
+          }}
+          onClick={() => setShowGroupsPanel((value) => !value)}
+        >
+          <div className="row">
+            <Building2 size={20} />
+            <div>
+              <strong>Groups (owners with multiple locations)</strong>
+              <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+                {groups.length} group{groups.length === 1 ? "" : "s"} — tap to{" "}
+                {showGroupsPanel ? "collapse" : "expand"}
+              </p>
+            </div>
+          </div>
+          <ChevronDown
+            size={18}
+            style={{
+              transform: showGroupsPanel ? "rotate(180deg)" : "none",
+              transition: "transform .15s ease"
+            }}
+          />
+        </button>
+
+        {showGroupsPanel && (
+          <>
+            <p className="small" style={{ marginTop: 0 }}>
               For customers with more than one job site. Two links per group:
               one for the owner, showing every location together — and one
               shared link for all managers, where each picks their own
               location before starting its punch list.
             </p>
-          </div>
-        </div>
 
-        {!loadingGroups && groups.length > 0 && (
+            {!loadingGroups && groups.length > 0 && (
           <div className="stack">
             {groups.map((group) => (
               <div key={group.id} className="row between">
@@ -654,23 +695,52 @@ export default function HomePage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </section>
 
       <section className="card stack">
-        <div className="row">
-          <MapPin size={20} />
-          <div>
-            <strong>Locations (places with multiple rounds)</strong>
-            <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+        <button
+          className="row between"
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            width: "100%",
+            textAlign: "left",
+            cursor: "pointer"
+          }}
+          onClick={() => setShowLocationsPanel((value) => !value)}
+        >
+          <div className="row">
+            <MapPin size={20} />
+            <div>
+              <strong>Locations (places with multiple rounds)</strong>
+              <p className="small" style={{ marginTop: 4, marginBottom: 0 }}>
+                {locations.length} location{locations.length === 1 ? "" : "s"}{" "}
+                — tap to {showLocationsPanel ? "collapse" : "expand"}
+              </p>
+            </div>
+          </div>
+          <ChevronDown
+            size={18}
+            style={{
+              transform: showLocationsPanel ? "rotate(180deg)" : "none",
+              transition: "transform .15s ease"
+            }}
+          />
+        </button>
+
+        {showLocationsPanel && (
+          <>
+            <p className="small" style={{ marginTop: 0 }}>
               For one place that gets several separate jobs over time (e.g.
               electrical, then plumbing, then painting). Each round keeps its
               own items, photos and report — the location link always opens
               the current one, with past rounds kept as history.
             </p>
-          </div>
-        </div>
 
-        {!loadingLocations && locations.length > 0 && (
+            {!loadingLocations && locations.length > 0 && (
           <div className="stack">
             {locations.map((location) => (
               <div key={location.id} className="row between">
@@ -777,6 +847,8 @@ export default function HomePage() {
             </button>
           </div>
         )}
+          </>
+        )}
       </section>
 
       <section className="card stack">
@@ -794,13 +866,17 @@ export default function HomePage() {
       </section>
 
       <section style={{ marginTop: 16 }}>
+        <p className="small" style={{ margin: "0 0 8px" }}>
+          Standalone punch lists (not part of a group or location — those
+          live inside their own sections above)
+        </p>
         {loadingProjects ? (
           <div className="card empty">Loading projects...</div>
         ) : filteredProjects.length === 0 ? (
           <div className="card empty">
-            {projects.length === 0
-              ? "No projects yet. Create your first punch list below."
-              : "No projects match your search."}
+            {search.trim() === ""
+              ? "No standalone punch lists yet. Ones tied to a Location or Group show up in those sections instead."
+              : "No punch lists match your search."}
           </div>
         ) : (
           filteredProjects.map((project) => {

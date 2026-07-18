@@ -166,6 +166,7 @@ async function deleteStorageFolder(folderRef: StorageReference) {
 export async function deleteProjectCompletely(projectId: string) {
   const projectSnap = await getDoc(doc(db, "projects", projectId));
   const groupId = projectSnap.exists() ? projectSnap.data().groupId : null;
+  const locationId = projectSnap.exists() ? projectSnap.data().locationId : null;
 
   const itemsSnap = await getDocs(collection(db, "projects", projectId, "items"));
   await Promise.all(itemsSnap.docs.map((itemDoc) => deleteDoc(itemDoc.ref)));
@@ -177,6 +178,12 @@ export async function deleteProjectCompletely(projectId: string) {
   if (groupId) {
     await updateDoc(doc(db, "groups", groupId), {
       projectIds: arrayRemove(projectId)
+    });
+  }
+
+  if (locationId) {
+    await updateDoc(doc(db, "locations", locationId), {
+      roundIds: arrayRemove(projectId)
     });
   }
 }

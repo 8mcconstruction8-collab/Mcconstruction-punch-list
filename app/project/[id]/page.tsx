@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   addDoc,
@@ -24,11 +25,13 @@ import {
   Lock,
   LogIn,
   LogOut,
+  Trash2,
   Unlock
 } from "lucide-react";
 import {
   checkIsContractor,
   db,
+  deleteProjectCompletely,
   ensureAnonymousAuth,
   notifyContractor,
   signOutContractor,
@@ -52,6 +55,7 @@ export default function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: projectId } = use(params);
+  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [items, setItems] = useState<PunchItem[]>([]);
   const [title, setTitle] = useState("");
@@ -228,6 +232,23 @@ export default function ProjectPage({
       setIntakeError("Couldn't save. Please try again.");
     } finally {
       setSavingIntake(false);
+    }
+  }
+
+  async function handleDeleteRound() {
+    if (!project) return;
+    const label = project.roundLabel || project.customerName || "this punch list";
+    const confirmed = confirm(
+      `Delete "${label}" forever? This removes every item and photo. This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteProjectCompletely(projectId);
+      router.push(project.locationId ? `/location/${project.locationId}` : "/");
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't delete. Please try again.");
     }
   }
 
@@ -431,6 +452,14 @@ export default function ProjectPage({
             >
               <LogOut size={16} />
               Sign out
+            </button>
+            <button
+              className="btn btn-secondary row"
+              style={{ color: "#b42318" }}
+              onClick={handleDeleteRound}
+            >
+              <Trash2 size={16} />
+              Delete
             </button>
           </div>
         </div>
