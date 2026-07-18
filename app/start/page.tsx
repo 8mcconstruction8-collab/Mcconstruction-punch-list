@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db, ensureAnonymousAuth } from "@/lib/firebase";
+import { DEFAULT_CONTRACTOR_NOTIFY_EMAIL, db, ensureAnonymousAuth } from "@/lib/firebase";
 import type { ProjectStatus } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
 
@@ -30,6 +30,7 @@ export default function StartPage() {
           address: "",
           contractorName: "MC Construction & Improvement",
           contractorUid: DEFAULT_CONTRACTOR_UID,
+          contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
           status: "open" as ProjectStatus,
           createdAt: serverTimestamp()
         });

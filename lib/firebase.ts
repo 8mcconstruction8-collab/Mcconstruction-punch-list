@@ -112,6 +112,45 @@ export function watchAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
 
+/**
+ * The single contractor account's notification email, stamped onto every
+ * project at creation time (as contractorNotifyEmail). Denormalized onto
+ * the project itself — rather than read from the contractors collection,
+ * which customers can't read — so both the client and the Firestore
+ * rules for the `mail` collection have something they can check without
+ * needing extra permissions.
+ */
+export const DEFAULT_CONTRACTOR_NOTIFY_EMAIL =
+  process.env.NEXT_PUBLIC_DEFAULT_CONTRACTOR_EMAIL || "";
+
+/**
+ * Queues a notification email to the contractor who owns this project,
+ * via the Firebase "Trigger Email" extension (watches the `mail`
+ * collection). Silently does nothing if the project has no
+ * contractorNotifyEmail on file (e.g. projects created before this
+ * feature existed) — a missing notification is better than a crash.
+ */
+export async function notifyContractor(
+  projectId: string,
+  contractorNotifyEmail: string | undefined | null,
+  subject: string,
+  bodyLines: string[]
+) {
+  if (!contractorNotifyEmail) return;
+  try {
+    await addDoc(collection(db, "mail"), {
+      to: [contractorNotifyEmail],
+      projectId,
+      message: {
+        subject,
+        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+      }
+    });
+  } catch (err) {
+    console.error("Failed to queue notification email", err);
+  }
+}
+
 async function deleteStorageFolder(folderRef: StorageReference) {
   const result = await listAll(folderRef);
   await Promise.all(result.items.map((item) => deleteObject(item)));

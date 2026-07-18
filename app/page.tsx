@@ -22,6 +22,7 @@ import { Building2, ClipboardCheck, LogOut, MapPin, Plus, RefreshCw, Search, Tra
 import {
   checkIsContractor,
   db,
+  DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
   deleteProjectCompletely,
   migrateGroupToLocations,
   signOutContractor,
@@ -202,6 +203,7 @@ export default function HomePage() {
         address: location.address || "",
         contractorName: "MC Construction & Improvement",
         contractorUid: location.contractorUid,
+        contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
         groupId: location.groupId || null,
         locationId: location.id,
         roundLabel: label.trim() || `Round ${(location.roundIds?.length || 0) + 1}`,
@@ -333,6 +335,7 @@ export default function HomePage() {
         address: address.trim(),
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
+        contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
         groupId: selectedLocationId ? null : selectedGroupId || null,
         locationId: selectedLocationId || null,
         roundLabel: selectedLocationId ? "Round 1" : null,

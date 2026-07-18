@@ -9,6 +9,7 @@ export type Project = {
   address: string;
   contractorName: string;
   contractorUid: string;
+  contractorNotifyEmail?: string;
   groupId?: string;
   locationId?: string;
   roundLabel?: string;

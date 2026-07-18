@@ -20,6 +20,46 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // A group ties several projects (locations) together for one owner
+    // to see at once. Same capability-link model as projects: anyone who
+    // knows the group ID can open it, but only the contractor can browse
+    // the full list or change which projects belong to it. The owner
+    // view never runs an open query against /projects — it fetches each
+    // project in projectIds one by one, so it can never see anything
+    // outside its own group.
+    match /groups/{groupId} {
+      allow get: if request.auth != null;
+      allow list, create, update, delete: if isContractor();
+    }
+
+    // A location is a fixed place (e.g. one restaurant) that can have many
+    // rounds (projects) over time — one per job that comes up there. Same
+    // capability-link model as groups: knowing the ID gets you in, but
+    // only the contractor can browse all locations or manage which rounds
+    // belong to one.
+    match /locations/{locationId} {
+      allow get: if request.auth != null;
+      allow list, create, update, delete: if isContractor();
+    }
+
+    // Notification emails go through the Firebase "Trigger Email"
+    // extension, which watches this collection. Locked down hard: a
+    // write is only accepted if the "to" address exactly matches the
+    // contractorNotifyEmail already stored on the referenced project —
+    // so this can never be used to email anyone except the contractor
+    // who owns that specific project. Nobody (not even the contractor)
+    // can read these back or edit them after creation; only the
+    // extension's backend function touches them from here, and that
+    // runs with admin privileges outside these rules.
+    match /mail/{mailId} {
+      allow create: if request.auth != null &&
+        request.resource.data.projectId is string &&
+        request.resource.data.to ==
+          [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.contractorNotifyEmail] &&
+        request.resource.data.keys().hasOnly(['to', 'message', 'projectId']);
+      allow read, list, update, delete: if false;
+    }
+
     match /projects/{projectId} {
       // A project can be fetched directly if you already know its ID
       // (i.e. you have the share link) — but the collection can only
@@ -27,15 +67,35 @@ service cloud.firestore {
       // customer (or anyone else) from enumerating every project.
       allow get: if request.auth != null;
       allow list: if isContractor();
-      allow create, delete: if isContractor();
+
+      // Contractor can create any project. A non-contractor can only ever
+      // create a *blank* project (used by the public /start link) — name
+      // and address empty, status open, and pointed at a real contractor
+      // account. This is what lets a fixed link safely spin up a fresh
+      // punch list for whoever opens it, without opening the door to
+      // arbitrary writes.
+      allow create: if isContractor() ||
+        (request.auth != null &&
+          request.resource.data.customerName == '' &&
+          request.resource.data.address == '' &&
+          request.resource.data.status == 'open' &&
+          exists(/databases/$(database)/documents/contractors/$(request.resource.data.contractorUid)));
+
+      allow delete: if isContractor();
 
       // Contractor can update anything. A non-contractor (the customer)
-      // may only ever write their own signature fields — nothing else on
-      // the project document.
+      // may write their own signature fields any time, and may fill in
+      // their name/email/address exactly once — only while those fields
+      // are still empty, so a link can't be used to overwrite someone
+      // else's project info later.
       allow update: if isContractor() ||
         (request.auth != null &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['customerSignature', 'customerSignedName', 'customerSignedAt']));
+            .hasOnly(['customerSignature', 'customerSignedName', 'customerSignedAt'])) ||
+        (request.auth != null &&
+          (resource.data.customerName == '' || resource.data.address == '') &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['customerName', 'customerEmail', 'address']));
 
       match /items/{itemId} {
         allow get, list: if request.auth != null;

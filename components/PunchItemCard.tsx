@@ -10,7 +10,7 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { CheckCircle2, History, Save, Trash2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db, notifyContractor } from "@/lib/firebase";
 import {
   PUNCH_CATEGORIES,
   PUNCH_PRIORITIES,
@@ -25,6 +25,7 @@ type Props = {
   projectId: string;
   mode: "customer" | "contractor";
   projectClosed?: boolean;
+  contractorNotifyEmail?: string;
 };
 
 const statusLabel: Record<PunchStatus, string> = {
@@ -53,7 +54,13 @@ const priorityLabel = Object.fromEntries(
   PUNCH_PRIORITIES.map((option) => [option.value, option.label])
 );
 
-export default function PunchItemCard({ item, projectId, mode, projectClosed }: Props) {
+export default function PunchItemCard({
+  item,
+  projectId,
+  mode,
+  projectClosed,
+  contractorNotifyEmail
+}: Props) {
   const [assessment, setAssessment] = useState(item.contractorAssessment || "");
   const [status, setStatus] = useState<PunchStatus>(item.status || "open");
   const [saving, setSaving] = useState(false);
@@ -72,6 +79,18 @@ export default function PunchItemCard({ item, projectId, mode, projectClosed }: 
       history: arrayUnion(entry),
       updatedAt: serverTimestamp()
     });
+
+    if (kind === "customer") {
+      notifyContractor(
+        projectId,
+        contractorNotifyEmail,
+        `New photo — ${item.title || item.description}`,
+        [
+          `A new photo was added to "${item.title || item.description}".`,
+          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+        ]
+      );
+    }
   }
 
   async function saveContractorUpdate() {

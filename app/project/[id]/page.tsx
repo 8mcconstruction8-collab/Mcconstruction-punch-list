@@ -30,6 +30,7 @@ import {
   checkIsContractor,
   db,
   ensureAnonymousAuth,
+  notifyContractor,
   signOutContractor,
   storage,
   watchAuthState
@@ -172,6 +173,20 @@ export default function ProjectPage({
       setPriority("medium");
       setNewItemPhoto(null);
       setNewItemPhotoName("");
+
+      if (!isContractor && project) {
+        const who = project.customerName || "Someone";
+        notifyContractor(
+          projectId,
+          project.contractorNotifyEmail,
+          `New item — ${project.customerName || "Rounds"}: ${title.trim()}`,
+          [
+            `${who} added a new punch-list item${newItemPhoto ? " with a photo" : ""}.`,
+            `<strong>${title.trim()}</strong> — ${description.trim()}`,
+            `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+          ]
+        );
+      }
     } catch (err) {
       console.error(err);
       alert("Item was created, but the photo couldn't be uploaded. You can add it from the item card below.");
@@ -196,6 +211,18 @@ export default function ProjectPage({
         customerEmail: intakeEmail.trim() || null,
         address: intakeAddress.trim()
       });
+
+      notifyContractor(
+        projectId,
+        project?.contractorNotifyEmail,
+        `New customer info — ${intakeName.trim()}`,
+        [
+          `${intakeName.trim()} filled in their info for a punch list.`,
+          `Address: ${intakeAddress.trim()}`,
+          intakeEmail.trim() ? `Email: ${intakeEmail.trim()}` : "",
+          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+        ].filter(Boolean)
+      );
     } catch (err) {
       console.error(err);
       setIntakeError("Couldn't save. Please try again.");
@@ -543,6 +570,7 @@ export default function ProjectPage({
               projectId={projectId}
               mode={isContractor ? mode : "customer"}
               projectClosed={project.status === "closed"}
+              contractorNotifyEmail={project.contractorNotifyEmail}
             />
           ))
         )}

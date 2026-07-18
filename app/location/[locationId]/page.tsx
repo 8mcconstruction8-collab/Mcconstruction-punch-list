@@ -16,6 +16,7 @@ import { Plus } from "lucide-react";
 import {
   checkIsContractor,
   db,
+  DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
   ensureAnonymousAuth,
   watchAuthState
 } from "@/lib/firebase";
@@ -102,6 +103,7 @@ export default function LocationPage({
         address: location.address || "",
         contractorName: "MC Construction & Improvement",
         contractorUid: location.contractorUid,
+        contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
         groupId: location.groupId || null,
         locationId: location.id,
         roundLabel: newRoundLabel.trim() || `Round ${rounds.length + 1}`,
