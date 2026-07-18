@@ -14,12 +14,24 @@ import {
   updateDoc
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
-import { ArrowLeft, ClipboardPlus, Copy, FileText, Lock, LogIn, LogOut, Unlock } from "lucide-react";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import {
+  ArrowLeft,
+  Camera,
+  ClipboardPlus,
+  Copy,
+  FileText,
+  Lock,
+  LogIn,
+  LogOut,
+  Unlock
+} from "lucide-react";
 import {
   checkIsContractor,
   db,
   ensureAnonymousAuth,
   signOutContractor,
+  storage,
   watchAuthState
 } from "@/lib/firebase";
 import {
@@ -56,6 +68,8 @@ export default function ProjectPage({
   const [intakeAddress, setIntakeAddress] = useState("");
   const [savingIntake, setSavingIntake] = useState(false);
   const [intakeError, setIntakeError] = useState("");
+  const [newItemPhoto, setNewItemPhoto] = useState<File | null>(null);
+  const [newItemPhotoName, setNewItemPhotoName] = useState("");
 
   useEffect(() => {
     const unsubscribeAuth = watchAuthState(async (authUser) => {
@@ -120,7 +134,7 @@ export default function ProjectPage({
 
     setAdding(true);
     try {
-      await addDoc(collection(db, "projects", projectId, "items"), {
+      const itemDoc = await addDoc(collection(db, "projects", projectId, "items"), {
         projectId,
         title: title.trim(),
         description: description.trim(),
@@ -135,11 +149,32 @@ export default function ProjectPage({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      if (newItemPhoto) {
+        const kind = isContractor ? "contractor" : "customer";
+        const safeName = newItemPhoto.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const fileRef = ref(
+          storage,
+          `projects/${projectId}/${itemDoc.id}/${kind}/${Date.now()}-${safeName}`
+        );
+        await uploadBytes(fileRef, newItemPhoto, { contentType: newItemPhoto.type });
+        const url = await getDownloadURL(fileRef);
+        await updateDoc(itemDoc, {
+          [kind === "customer" ? "customerPhotos" : "contractorPhotos"]: [url],
+          updatedAt: serverTimestamp()
+        });
+      }
+
       setTitle("");
       setDescription("");
       setRoom("");
       setCategory("other");
       setPriority("medium");
+      setNewItemPhoto(null);
+      setNewItemPhotoName("");
+    } catch (err) {
+      console.error(err);
+      alert("Item was created, but the photo couldn't be uploaded. You can add it from the item card below.");
     } finally {
       setAdding(false);
     }
@@ -450,6 +485,45 @@ export default function ProjectPage({
                 ))}
               </select>
             </label>
+
+            <div>
+              <label className="btn btn-secondary row" style={{ display: "inline-flex" }}>
+                <Camera size={17} />
+                {newItemPhotoName ? "Change photo" : "Add photo (optional)"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setNewItemPhoto(file);
+                    setNewItemPhotoName(file ? file.name : "");
+                  }}
+                />
+              </label>
+              {newItemPhotoName && (
+                <p className="small" style={{ marginTop: 6 }}>
+                  {newItemPhotoName}{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewItemPhoto(null);
+                      setNewItemPhotoName("");
+                    }}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      color: "#b42318",
+                      cursor: "pointer",
+                      padding: 0,
+                      marginLeft: 6
+                    }}
+                  >
+                    Remove
+                  </button>
+                </p>
+              )}
+            </div>
 
             <button className="btn btn-primary" disabled={adding}>
               {adding ? "Adding..." : "Add item"}

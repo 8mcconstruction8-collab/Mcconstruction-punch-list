@@ -76,6 +76,7 @@ export default function HomePage() {
   const [lastLocationUrl, setLastLocationUrl] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [migratingGroupId, setMigratingGroupId] = useState<string | null>(null);
+  const [startingRoundId, setStartingRoundId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
@@ -184,6 +185,44 @@ export default function HomePage() {
       alert("Migration failed. Please try again.");
     } finally {
       setMigratingGroupId(null);
+    }
+  }
+
+  async function handleStartRound(location: Location) {
+    const label = prompt(
+      "What's this round for? (e.g. Electrical, Plumbing, Painting)",
+      `Round ${(location.roundIds?.length || 0) + 1}`
+    );
+    if (label === null) return; // cancelled
+
+    setStartingRoundId(location.id);
+    try {
+      const roundDoc = await addDoc(collection(db, "projects"), {
+        customerName: location.name,
+        address: location.address || "",
+        contractorName: "MC Construction & Improvement",
+        contractorUid: location.contractorUid,
+        groupId: location.groupId || null,
+        locationId: location.id,
+        roundLabel: label.trim() || `Round ${(location.roundIds?.length || 0) + 1}`,
+        status: "open" as ProjectStatus,
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, "locations", location.id), {
+        roundIds: arrayUnion(roundDoc.id)
+      });
+
+      const roundUrl = `${window.location.origin}/project/${roundDoc.id}`;
+      await navigator.clipboard.writeText(roundUrl);
+      alert(`Round started. Link copied:\n${roundUrl}`);
+
+      if (contractor) loadLocations(contractor.uid);
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't start the round. Please try again.");
+    } finally {
+      setStartingRoundId(null);
     }
   }
 
@@ -615,17 +654,28 @@ export default function HomePage() {
                     {location.roundIds?.length === 1 ? "" : "s"}
                   </div>
                 </div>
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: 12 }}
-                  onClick={() =>
-                    navigator.clipboard.writeText(
-                      `${window.location.origin}/location/${location.id}`
-                    )
-                  }
-                >
-                  Copy location link
-                </button>
+                <div className="row">
+                  <button
+                    className="btn btn-secondary row"
+                    style={{ fontSize: 12 }}
+                    disabled={startingRoundId === location.id}
+                    onClick={() => handleStartRound(location)}
+                  >
+                    <Plus size={13} />
+                    {startingRoundId === location.id ? "Starting..." : "Start round"}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12 }}
+                    onClick={() =>
+                      navigator.clipboard.writeText(
+                        `${window.location.origin}/location/${location.id}`
+                      )
+                    }
+                  >
+                    Copy location link
+                  </button>
+                </div>
               </div>
             ))}
           </div>
