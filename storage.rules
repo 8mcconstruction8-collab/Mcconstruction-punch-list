@@ -15,5 +15,15 @@ service firebase.storage {
       allow delete: if request.auth != null &&
         firestore.exists(/databases/(default)/documents/contractors/$(request.auth.uid));
     }
+
+    // Deleting a project first lists every file under it (at every
+    // folder depth) before deleting them one by one. Without this rule,
+    // that listing step is silently denied — even though the delete
+    // rule above is correct — which is what was causing "Couldn't
+    // delete" this whole time.
+    match /projects/{projectId}/{allPaths=**} {
+      allow list: if request.auth != null &&
+        firestore.exists(/databases/(default)/documents/contractors/$(request.auth.uid));
+    }
   }
 }

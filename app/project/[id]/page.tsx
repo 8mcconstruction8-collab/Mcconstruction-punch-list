@@ -73,8 +73,7 @@ export default function ProjectPage({
   const [intakeAddress, setIntakeAddress] = useState("");
   const [savingIntake, setSavingIntake] = useState(false);
   const [intakeError, setIntakeError] = useState("");
-  const [newItemPhoto, setNewItemPhoto] = useState<File | null>(null);
-  const [newItemPhotoName, setNewItemPhotoName] = useState("");
+  const [newItemPhotos, setNewItemPhotos] = useState<File[]>([]);
 
   useEffect(() => {
     const unsubscribeAuth = watchAuthState(async (authUser) => {
@@ -155,17 +154,22 @@ export default function ProjectPage({
         updatedAt: serverTimestamp()
       });
 
-      if (newItemPhoto) {
+      if (newItemPhotos.length > 0) {
         const kind = isContractor ? "contractor" : "customer";
-        const safeName = newItemPhoto.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const fileRef = ref(
-          storage,
-          `projects/${projectId}/${itemDoc.id}/${kind}/${Date.now()}-${safeName}`
+        const urls = await Promise.all(
+          newItemPhotos.map(async (file) => {
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            const fileRef = ref(
+              storage,
+              `projects/${projectId}/${itemDoc.id}/${kind}/${unique}-${safeName}`
+            );
+            await uploadBytes(fileRef, file, { contentType: file.type });
+            return getDownloadURL(fileRef);
+          })
         );
-        await uploadBytes(fileRef, newItemPhoto, { contentType: newItemPhoto.type });
-        const url = await getDownloadURL(fileRef);
         await updateDoc(itemDoc, {
-          [kind === "customer" ? "customerPhotos" : "contractorPhotos"]: [url],
+          [kind === "customer" ? "customerPhotos" : "contractorPhotos"]: urls,
           updatedAt: serverTimestamp()
         });
       }
@@ -175,17 +179,22 @@ export default function ProjectPage({
       setRoom("");
       setCategory("other");
       setPriority("medium");
-      setNewItemPhoto(null);
-      setNewItemPhotoName("");
+      setNewItemPhotos([]);
 
       if (!isContractor && project) {
         const who = project.customerName || "Someone";
+        const photoNote =
+          newItemPhotos.length === 0
+            ? ""
+            : newItemPhotos.length === 1
+              ? " with a photo"
+              : ` with ${newItemPhotos.length} photos`;
         notifyContractor(
           projectId,
           project.contractorNotifyEmail,
           `New item — ${project.customerName || "Rounds"}: ${title.trim()}`,
           [
-            `${who} added a new punch-list item${newItemPhoto ? " with a photo" : ""}.`,
+            `${who} added a new punch-list item${photoNote}.`,
             `<strong>${title.trim()}</strong> — ${description.trim()}`,
             `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
           ]
@@ -545,39 +554,50 @@ export default function ProjectPage({
             <div>
               <label className="btn btn-secondary row" style={{ display: "inline-flex" }}>
                 <Camera size={17} />
-                {newItemPhotoName ? "Change photo" : "Add photo (optional)"}
+                {newItemPhotos.length > 0
+                  ? `Add more photos (${newItemPhotos.length} selected)`
+                  : "Add photos (optional, up to 10)"}
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   hidden
                   onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setNewItemPhoto(file);
-                    setNewItemPhotoName(file ? file.name : "");
+                    const picked = Array.from(e.target.files || []);
+                    if (picked.length === 0) return;
+                    setNewItemPhotos((current) =>
+                      [...current, ...picked].slice(0, 10)
+                    );
+                    e.target.value = "";
                   }}
                 />
               </label>
-              {newItemPhotoName && (
-                <p className="small" style={{ marginTop: 6 }}>
-                  {newItemPhotoName}{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewItemPhoto(null);
-                      setNewItemPhotoName("");
-                    }}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      color: "#b42318",
-                      cursor: "pointer",
-                      padding: 0,
-                      marginLeft: 6
-                    }}
-                  >
-                    Remove
-                  </button>
-                </p>
+              {newItemPhotos.length > 0 && (
+                <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none" }}>
+                  {newItemPhotos.map((file, index) => (
+                    <li key={`${file.name}-${index}`} className="small">
+                      {file.name}{" "}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewItemPhotos((current) =>
+                            current.filter((_, i) => i !== index)
+                          )
+                        }
+                        style={{
+                          border: "none",
+                          background: "none",
+                          color: "#b42318",
+                          cursor: "pointer",
+                          padding: 0,
+                          marginLeft: 6
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
 

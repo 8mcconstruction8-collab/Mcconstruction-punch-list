@@ -68,14 +68,20 @@ export default function PunchItemCard({
 
   const itemRef = doc(db, "projects", projectId, "items", item.id);
 
-  async function addPhoto(kind: "customer" | "contractor", url: string) {
+  async function addPhoto(kind: "customer" | "contractor", urls: string[]) {
+    if (urls.length === 0) return;
+
+    const countLabel = urls.length > 1 ? `${urls.length} photos` : "a photo";
     const entry: HistoryEntry = {
-      action: kind === "customer" ? "Customer added a photo" : "Contractor added a completion photo",
+      action:
+        kind === "customer"
+          ? `Customer added ${countLabel}`
+          : `Contractor added ${countLabel} (completion)`,
       by: kind,
       at: Timestamp.now()
     };
     await updateDoc(itemRef, {
-      [kind === "customer" ? "customerPhotos" : "contractorPhotos"]: arrayUnion(url),
+      [kind === "customer" ? "customerPhotos" : "contractorPhotos"]: arrayUnion(...urls),
       history: arrayUnion(entry),
       updatedAt: serverTimestamp()
     });
@@ -84,9 +90,9 @@ export default function PunchItemCard({
       notifyContractor(
         projectId,
         contractorNotifyEmail,
-        `New photo — ${item.title || item.description}`,
+        `New photo${urls.length > 1 ? "s" : ""} — ${item.title || item.description}`,
         [
-          `A new photo was added to "${item.title || item.description}".`,
+          `${countLabel === "a photo" ? "A new photo was" : `${countLabel} were`} added to "${item.title || item.description}".`,
           `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
         ]
       );
@@ -174,7 +180,7 @@ export default function PunchItemCard({
           projectId={projectId}
           itemId={item.id}
           kind="customer"
-          onUploaded={(url) => addPhoto("customer", url)}
+          onUploaded={(urls) => addPhoto("customer", urls)}
         />
       )}
 
@@ -207,7 +213,7 @@ export default function PunchItemCard({
                 projectId={projectId}
                 itemId={item.id}
                 kind="contractor"
-                onUploaded={(url) => addPhoto("contractor", url)}
+                onUploaded={(urls) => addPhoto("contractor", urls)}
               />
               <button
                 className="btn btn-success row"
