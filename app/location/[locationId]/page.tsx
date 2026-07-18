@@ -110,6 +110,11 @@ export default function LocationPage({
       });
 
       router.push(`/project/${roundDoc.id}`);
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Couldn't start the round. This location may need a quick fix on the dashboard — ask MC Construction."
+      );
     } finally {
       setStarting(false);
     }

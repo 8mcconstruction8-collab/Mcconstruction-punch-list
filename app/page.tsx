@@ -115,9 +115,32 @@ export default function HomePage() {
         orderBy("createdAt", "desc")
       );
       const snapshot = await getDocs(locationsQuery);
-      setLocations(
-        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Location)
+      const fetched = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Location
       );
+      setLocations(fetched);
+
+      // Self-heal: locations created before contractorNotifyEmail existed
+      // are missing that field, which silently blocks "Start new round"
+      // for anyone but the contractor. Backfill it quietly in the
+      // background — no need to bother the user with this.
+      const needsRepair = fetched.filter((loc) => !loc.contractorNotifyEmail);
+      if (needsRepair.length > 0 && DEFAULT_CONTRACTOR_NOTIFY_EMAIL) {
+        await Promise.all(
+          needsRepair.map((loc) =>
+            updateDoc(doc(db, "locations", loc.id), {
+              contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL
+            }).catch((err) => console.error("Location repair failed", loc.id, err))
+          )
+        );
+        setLocations((current) =>
+          current.map((loc) =>
+            needsRepair.some((r) => r.id === loc.id)
+              ? { ...loc, contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL }
+              : loc
+          )
+        );
+      }
     } catch (err) {
       console.error(err);
     } finally {
