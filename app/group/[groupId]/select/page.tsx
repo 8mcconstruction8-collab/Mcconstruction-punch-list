@@ -46,7 +46,7 @@ export default function GroupSelectPage({
             id: locationSnap.id,
             name: data.name || "Untitled location",
             address: data.address || ""
-          };
+          } as LocationName;
         })
       );
 
