@@ -11,6 +11,7 @@ import BrandFooter from "@/components/BrandFooter";
 type LocationName = {
   id: string;
   name: string;
+  address?: string;
 };
 
 export default function GroupSelectPage({
@@ -43,7 +44,8 @@ export default function GroupSelectPage({
           const data = locationSnap.data() as Location;
           return {
             id: locationSnap.id,
-            name: data.name || "Untitled location"
+            name: data.name || "Untitled location",
+            address: data.address || ""
           };
         })
       );
@@ -94,10 +96,17 @@ export default function GroupSelectPage({
                 key={loc.id}
                 href={`/location/${loc.id}`}
                 className="btn btn-secondary row"
-                style={{ justifyContent: "flex-start" }}
+                style={{ justifyContent: "flex-start", alignItems: "flex-start" }}
               >
-                <MapPin size={16} />
-                {loc.name}
+                <MapPin size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+                <span>
+                  <span style={{ display: "block" }}>{loc.name}</span>
+                  {loc.address && (
+                    <span className="small" style={{ display: "block", fontWeight: 400 }}>
+                      {loc.address}
+                    </span>
+                  )}
+                </span>
               </Link>
             ))}
           </div>
