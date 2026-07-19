@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -25,6 +27,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  Plus,
   Trash2,
   Unlock
 } from "lucide-react";
@@ -244,6 +247,46 @@ export default function ProjectPage({
     }
   }
 
+  async function handleStartNewRound() {
+    if (!project?.locationId) return;
+
+    const label = prompt(
+      "What's this new round for? (e.g. Electrical, Plumbing, Painting)"
+    );
+    if (label === null) return; // cancelled
+
+    try {
+      const locationSnap = await getDoc(doc(db, "locations", project.locationId));
+      if (!locationSnap.exists()) {
+        alert("Couldn't find the location for this punch list.");
+        return;
+      }
+      const location = locationSnap.data();
+
+      const roundDoc = await addDoc(collection(db, "projects"), {
+        customerName: location.name,
+        address: location.address || "",
+        contractorName: "MC Construction & Improvement",
+        contractorUid: location.contractorUid,
+        contractorNotifyEmail: location.contractorNotifyEmail || null,
+        groupId: location.groupId || null,
+        locationId: project.locationId,
+        roundLabel: label.trim() || `Round ${(location.roundIds?.length || 0) + 1}`,
+        status: "open",
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, "locations", project.locationId), {
+        roundIds: arrayUnion(roundDoc.id)
+      });
+
+      router.push(`/project/${roundDoc.id}`);
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't start a new round. Please try again.");
+    }
+  }
+
   async function handleDeleteRound() {
     if (!project) return;
     const label = project.roundLabel || project.customerName || "this punch list";
@@ -367,14 +410,24 @@ export default function ProjectPage({
 
       <section className="project-head">
         {project.locationId && (
-          <Link
-            href={`/location/${project.locationId}`}
-            className="small row no-print"
-            style={{ marginBottom: 8, display: "inline-flex" }}
-          >
-            <ArrowLeft size={14} />
-            All rounds at this location
-          </Link>
+          <div className="row between no-print" style={{ marginBottom: 8 }}>
+            <Link
+              href={`/location/${project.locationId}`}
+              className="small row"
+              style={{ display: "inline-flex" }}
+            >
+              <ArrowLeft size={14} />
+              All rounds at this location
+            </Link>
+            <button
+              className="btn btn-secondary row"
+              style={{ fontSize: 12, padding: "6px 10px" }}
+              onClick={handleStartNewRound}
+            >
+              <Plus size={13} />
+              Start new round
+            </button>
+          </div>
         )}
         <div className="row between">
           <div>
