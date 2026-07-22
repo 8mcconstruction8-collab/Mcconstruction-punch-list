@@ -7,6 +7,7 @@ import { MapPin } from "lucide-react";
 import { db, ensureAnonymousAuth } from "@/lib/firebase";
 import type { Group, Location } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
+import InstallAppButton from "@/components/InstallAppButton";
 
 type LocationName = {
   id: string;
@@ -86,6 +87,8 @@ export default function GroupSelectPage({
             Choose the location you manage to open its punch list.
           </p>
         </div>
+
+        <InstallAppButton />
 
         {locations.length === 0 ? (
           <div className="empty">No locations available yet.</div>

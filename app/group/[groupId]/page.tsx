@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { db, ensureAnonymousAuth, watchAuthState } from "@/lib/firebase";
 import type { Group, Location, Project } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
+import InstallAppButton from "@/components/InstallAppButton";
 
 type LocationSummary = Location & {
   itemCount: number;
@@ -145,6 +146,7 @@ export default function GroupPage({
       </section>
 
       <section className="card stack">
+        <InstallAppButton />
         <label style={{ margin: 0 }}>
           <span className="row">
             <Search size={15} />

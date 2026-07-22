@@ -19,6 +19,7 @@ import {
   where
 } from "firebase/firestore";
 import {
+  Bell,
   Building2,
   ChevronDown,
   ClipboardCheck,
@@ -91,6 +92,11 @@ export default function HomePage() {
   const [migratingGroupId, setMigratingGroupId] = useState<string | null>(null);
   const [startingRoundId, setStartingRoundId] = useState<string | null>(null);
 
+  const [seenRoundCounts, setSeenRoundCounts] = useState<Record<string, number>>({});
+  const [seenStandaloneCount, setSeenStandaloneCount] = useState(0);
+  const [activitySeenLoaded, setActivitySeenLoaded] = useState(false);
+  const [hasStoredBaseline, setHasStoredBaseline] = useState(true);
+
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
       if (!user || user.isAnonymous) {
@@ -117,6 +123,64 @@ export default function HomePage() {
     loadGroups(contractor.uid);
     loadLocations(contractor.uid);
   }, [contractor]);
+
+  useEffect(() => {
+    try {
+      const storedCounts = localStorage.getItem("rounds_seen_round_counts");
+      if (storedCounts) {
+        setSeenRoundCounts(JSON.parse(storedCounts));
+      } else {
+        setHasStoredBaseline(false);
+      }
+      const storedStandalone = localStorage.getItem("rounds_seen_standalone_count");
+      if (storedStandalone) setSeenStandaloneCount(Number(storedStandalone));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActivitySeenLoaded(true);
+    }
+  }, []);
+
+  // First time this feature runs, there's nothing to compare against yet —
+  // silently treat whatever already exists as the starting point instead
+  // of flashing a misleading "everything is new" badge.
+  useEffect(() => {
+    if (hasStoredBaseline) return;
+    if (loadingLocations || loadingProjects) return;
+    if (locations.length === 0 && projects.length === 0) return;
+
+    const counts: Record<string, number> = {};
+    locations.forEach((loc) => {
+      counts[loc.id] = loc.roundIds?.length || 0;
+    });
+    setSeenRoundCounts(counts);
+    localStorage.setItem("rounds_seen_round_counts", JSON.stringify(counts));
+
+    const standaloneCount = projects.filter(
+      (p) => !p.locationId && !p.groupId
+    ).length;
+    setSeenStandaloneCount(standaloneCount);
+    localStorage.setItem("rounds_seen_standalone_count", String(standaloneCount));
+
+    setHasStoredBaseline(true);
+  }, [hasStoredBaseline, loadingLocations, loadingProjects, locations, projects]);
+
+  function markActivitySeen() {
+    const counts: Record<string, number> = {};
+    locations.forEach((loc) => {
+      counts[loc.id] = loc.roundIds?.length || 0;
+    });
+    setSeenRoundCounts(counts);
+    localStorage.setItem("rounds_seen_round_counts", JSON.stringify(counts));
+
+    const standaloneCount = projects.filter(
+      (p) => !p.locationId && !p.groupId
+    ).length;
+    setSeenStandaloneCount(standaloneCount);
+    localStorage.setItem("rounds_seen_standalone_count", String(standaloneCount));
+
+    setShowLocationsPanel(true);
+  }
 
   async function loadLocations(uid: string) {
     setLoadingLocations(true);
@@ -365,6 +429,10 @@ export default function HomePage() {
 
     try {
       setBusy(true);
+      const selectedLocation = selectedLocationId
+        ? locations.find((loc) => loc.id === selectedLocationId)
+        : null;
+
       const project = await addDoc(collection(db, "projects"), {
         customerName: customerName.trim(),
         customerEmail: customerEmail.trim() || null,
@@ -372,7 +440,9 @@ export default function HomePage() {
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
         contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
-        groupId: selectedLocationId ? null : selectedGroupId || null,
+        groupId: selectedLocationId
+          ? selectedLocation?.groupId || null
+          : selectedGroupId || null,
         locationId: selectedLocationId || null,
         roundLabel: selectedLocationId ? "Round 1" : null,
         status: "open" as ProjectStatus,
@@ -478,6 +548,33 @@ export default function HomePage() {
       );
     });
 
+  const roundStatsByLocation: Record<string, { open: number; total: number }> = {};
+  projects.forEach((p) => {
+    if (!p.locationId) return;
+    if (!roundStatsByLocation[p.locationId]) {
+      roundStatsByLocation[p.locationId] = { open: 0, total: 0 };
+    }
+    roundStatsByLocation[p.locationId].total += 1;
+    if (p.status !== "closed") roundStatsByLocation[p.locationId].open += 1;
+  });
+
+  const newRoundsByLocation: Record<string, number> = {};
+  let totalNewRounds = 0;
+  locations.forEach((loc) => {
+    const seen = seenRoundCounts[loc.id] || 0;
+    const current = loc.roundIds?.length || 0;
+    const diff = Math.max(0, current - seen);
+    newRoundsByLocation[loc.id] = diff;
+    totalNewRounds += diff;
+  });
+  const standaloneCount = projects.filter(
+    (p) => !p.locationId && !p.groupId
+  ).length;
+  const newStandaloneCount = Math.max(0, standaloneCount - seenStandaloneCount);
+  const totalNewActivity = activitySeenLoaded
+    ? totalNewRounds + newStandaloneCount
+    : 0;
+
   return (
     <main className="shell">
       <header className="brand">
@@ -488,7 +585,40 @@ export default function HomePage() {
         </div>
         <button
           className="btn btn-secondary row"
-          style={{ marginLeft: "auto" }}
+          style={{ marginLeft: "auto", position: "relative" }}
+          onClick={markActivitySeen}
+          title={
+            totalNewActivity > 0
+              ? `${totalNewActivity} new since last visit`
+              : "No new activity"
+          }
+        >
+          <Bell size={16} />
+          {totalNewActivity > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: -6,
+                right: -6,
+                background: "#b42318",
+                color: "white",
+                borderRadius: "999px",
+                fontSize: 11,
+                fontWeight: 800,
+                minWidth: 18,
+                height: 18,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 4px"
+              }}
+            >
+              {totalNewActivity}
+            </span>
+          )}
+        </button>
+        <button
+          className="btn btn-secondary row"
           onClick={async () => {
             await signOutContractor();
             router.replace("/login");
@@ -744,19 +874,42 @@ export default function HomePage() {
           <div className="stack">
             {locations.map((location) => (
               <div key={location.id} className="row between">
-                <div>
-                  <strong style={{ fontSize: 14 }}>{location.name}</strong>
-                  <div className="small">
-                    {location.roundIds?.length || 0} round
-                    {location.roundIds?.length === 1 ? "" : "s"}
+                <Link
+                  href={`/location/${location.id}`}
+                  style={{ textDecoration: "none", color: "inherit", flex: 1 }}
+                >
+                  <div className="row">
+                    <strong style={{ fontSize: 14 }}>{location.name}</strong>
+                    {newRoundsByLocation[location.id] > 0 && (
+                      <span className="badge badge-open">
+                        +{newRoundsByLocation[location.id]} new
+                      </span>
+                    )}
                   </div>
-                </div>
+                  <div className="small">
+                    {(() => {
+                      const stats = roundStatsByLocation[location.id] || {
+                        open: 0,
+                        total: location.roundIds?.length || 0
+                      };
+                      return (
+                        <>
+                          {stats.open} open · {stats.total} round
+                          {stats.total === 1 ? "" : "s"} — tap to open
+                        </>
+                      );
+                    })()}
+                  </div>
+                </Link>
                 <div className="row">
                   <button
                     className="btn btn-secondary row"
                     style={{ fontSize: 12 }}
                     disabled={startingRoundId === location.id}
-                    onClick={() => handleStartRound(location)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleStartRound(location);
+                    }}
                   >
                     <Plus size={13} />
                     {startingRoundId === location.id ? "Starting..." : "Start round"}
@@ -764,13 +917,14 @@ export default function HomePage() {
                   <button
                     className="btn btn-secondary"
                     style={{ fontSize: 12 }}
-                    onClick={() =>
+                    onClick={(e) => {
+                      e.preventDefault();
                       navigator.clipboard.writeText(
                         `${window.location.origin}/location/${location.id}`
-                      )
-                    }
+                      );
+                    }}
                   >
-                    Copy location link
+                    Copy link
                   </button>
                 </div>
               </div>

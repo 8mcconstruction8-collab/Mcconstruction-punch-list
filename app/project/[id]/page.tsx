@@ -27,6 +27,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  MapPin,
   Plus,
   Trash2,
   Unlock
@@ -51,6 +52,7 @@ import {
 } from "@/lib/types";
 import PunchItemCard from "@/components/PunchItemCard";
 import BrandFooter from "@/components/BrandFooter";
+import InstallAppButton from "@/components/InstallAppButton";
 
 export default function ProjectPage({
   params
@@ -60,6 +62,7 @@ export default function ProjectPage({
   const { id: projectId } = use(params);
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
+  const [locationGroupId, setLocationGroupId] = useState<string | null>(null);
   const [items, setItems] = useState<PunchItem[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -103,7 +106,20 @@ export default function ProjectPage({
       doc(db, "projects", projectId),
       (snapshot) => {
         if (snapshot.exists()) {
-          setProject({ id: snapshot.id, ...snapshot.data() } as Project);
+          const projectData = { id: snapshot.id, ...snapshot.data() } as Project;
+          setProject(projectData);
+
+          if (projectData.locationId) {
+            getDoc(doc(db, "locations", projectData.locationId))
+              .then((locationSnap) => {
+                setLocationGroupId(
+                  locationSnap.exists() ? locationSnap.data().groupId || null : null
+                );
+              })
+              .catch((err) => console.error(err));
+          } else {
+            setLocationGroupId(null);
+          }
         }
         setLoading(false);
       },
@@ -280,6 +296,18 @@ export default function ProjectPage({
         roundIds: arrayUnion(roundDoc.id)
       });
 
+      if (!isContractor) {
+        notifyContractor(
+          roundDoc.id,
+          location.contractorNotifyEmail,
+          `New round started — ${location.name}`,
+          [
+            `${project.customerName || "Someone"} started a new round at ${location.name}: <strong>${label.trim() || "Untitled round"}</strong>.`,
+            `<a href="${window.location.origin}/project/${roundDoc.id}">Open the punch list</a>`
+          ]
+        );
+      }
+
       router.push(`/project/${roundDoc.id}`);
     } catch (err) {
       console.error(err);
@@ -410,7 +438,7 @@ export default function ProjectPage({
 
       <section className="project-head">
         {project.locationId && (
-          <div className="row between no-print" style={{ marginBottom: 8 }}>
+          <div className="row between no-print" style={{ marginBottom: 8, flexWrap: "wrap" }}>
             <Link
               href={`/location/${project.locationId}`}
               className="small row"
@@ -419,14 +447,26 @@ export default function ProjectPage({
               <ArrowLeft size={14} />
               All rounds at this location
             </Link>
-            <button
-              className="btn btn-secondary row"
-              style={{ fontSize: 12, padding: "6px 10px" }}
-              onClick={handleStartNewRound}
-            >
-              <Plus size={13} />
-              Start new round
-            </button>
+            <div className="row" style={{ flexWrap: "wrap" }}>
+              {locationGroupId && (
+                <Link
+                  href={`/group/${locationGroupId}/select`}
+                  className="btn btn-secondary row"
+                  style={{ fontSize: 12, padding: "6px 10px" }}
+                >
+                  <MapPin size={13} />
+                  Back to locations
+                </Link>
+              )}
+              <button
+                className="btn btn-secondary row"
+                style={{ fontSize: 12, padding: "6px 10px" }}
+                onClick={handleStartNewRound}
+              >
+                <Plus size={13} />
+                Start new round
+              </button>
+            </div>
           </div>
         )}
         <div className="row between">
@@ -455,6 +495,7 @@ export default function ProjectPage({
               <Copy size={16} />
               Share
             </button>
+            <InstallAppButton />
           </div>
         </div>
         <p className="small" style={{ marginTop: 10 }}>

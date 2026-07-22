@@ -12,15 +12,19 @@ import {
   serverTimestamp,
   updateDoc
 } from "firebase/firestore";
-import { Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import {
+  auth,
+  checkIsContractor,
   db,
   DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
   ensureAnonymousAuth,
+  notifyContractor,
   watchAuthState
 } from "@/lib/firebase";
 import type { Location, Project, ProjectStatus } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
+import InstallAppButton from "@/components/InstallAppButton";
 
 type RoundSummary = {
   id: string;
@@ -109,6 +113,22 @@ export default function LocationPage({
         roundIds: arrayUnion(roundDoc.id)
       });
 
+      const currentUser = auth.currentUser;
+      const isContractorUser = currentUser
+        ? await checkIsContractor(currentUser.uid)
+        : false;
+      if (!isContractorUser) {
+        notifyContractor(
+          roundDoc.id,
+          location.contractorNotifyEmail,
+          `New round started — ${location.name}`,
+          [
+            `A new round was started at ${location.name}: <strong>${newRoundLabel.trim() || "Untitled round"}</strong>.`,
+            `<a href="${window.location.origin}/project/${roundDoc.id}">Open the punch list</a>`
+          ]
+        );
+      }
+
       router.push(`/project/${roundDoc.id}`);
     } catch (err) {
       console.error(err);
@@ -139,10 +159,22 @@ export default function LocationPage({
       </header>
 
       <section className="card stack">
+        {location.groupId && (
+          <Link
+            href={`/group/${location.groupId}/select`}
+            className="small row no-print"
+            style={{ display: "inline-flex" }}
+          >
+            <ArrowLeft size={14} />
+            Choose a different location
+          </Link>
+        )}
         <div>
           <h2 style={{ marginBottom: 4 }}>{location.name}</h2>
           {location.address && <p className="small">{location.address}</p>}
         </div>
+
+        <InstallAppButton />
 
         {rounds.length === 0 ? (
           <div className="empty">No work started at this location yet.</div>
