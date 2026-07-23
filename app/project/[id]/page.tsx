@@ -20,6 +20,7 @@ import type { User } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   ArrowLeft,
+  Archive,
   Camera,
   ClipboardPlus,
   Copy,
@@ -146,9 +147,21 @@ export default function ProjectPage({
     };
   }, [projectId, user]);
 
+  const [showArchived, setShowArchived] = useState(false);
+
   const completedCount = useMemo(
-    () => items.filter((item) => item.status === "completed").length,
+    () =>
+      items.filter((item) => item.status === "completed" || item.status === "archived")
+        .length,
     [items]
+  );
+  const archivedCount = useMemo(
+    () => items.filter((item) => item.status === "archived").length,
+    [items]
+  );
+  const visibleItems = useMemo(
+    () => (showArchived ? items : items.filter((item) => item.status !== "archived")),
+    [items, showArchived]
   );
 
   async function addItem(event: FormEvent) {
@@ -703,10 +716,24 @@ export default function ProjectPage({
       )}
 
       <section style={{ marginTop: 16 }}>
-        {items.length === 0 ? (
-          <div className="card empty">No punch-list items yet.</div>
+        {archivedCount > 0 && (
+          <button
+            className="btn btn-secondary row no-print"
+            style={{ marginBottom: 12 }}
+            onClick={() => setShowArchived((value) => !value)}
+          >
+            <Archive size={15} />
+            {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+          </button>
+        )}
+        {visibleItems.length === 0 ? (
+          <div className="card empty">
+            {items.length === 0
+              ? "No punch-list items yet."
+              : "All items are archived. Tap \"Show archived\" above to see them."}
+          </div>
         ) : (
-          items.map((item) => (
+          visibleItems.map((item) => (
             <PunchItemCard
               key={item.id}
               item={item}

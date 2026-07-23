@@ -47,7 +47,7 @@ export type Group = {
   createdAt?: Timestamp;
 };
 
-export type PunchStatus = "open" | "in_progress" | "completed";
+export type PunchStatus = "open" | "in_progress" | "completed" | "archived";
 
 export type PunchPriority = "low" | "medium" | "high";
 

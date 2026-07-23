@@ -32,13 +32,15 @@ type Props = {
 const statusLabel: Record<PunchStatus, string> = {
   open: "Open",
   in_progress: "In progress",
-  completed: "Completed"
+  completed: "Completed",
+  archived: "Archived"
 };
 
 const statusClass: Record<PunchStatus, string> = {
   open: "badge badge-open",
   in_progress: "badge badge-progress",
-  completed: "badge badge-done"
+  completed: "badge badge-done",
+  archived: "badge badge-neutral"
 };
 
 const priorityClass: Record<string, string> = {
@@ -221,6 +223,7 @@ export default function PunchItemCard({
                 <option value="open">Open</option>
                 <option value="in_progress">In progress</option>
                 <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
               </select>
             </label>
 
