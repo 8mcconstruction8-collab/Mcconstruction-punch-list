@@ -66,6 +66,8 @@ service cloud.firestore {
         (
           request.resource.data.to ==
             [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.contractorNotifyEmail] ||
+          request.resource.data.to ==
+            [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.ownerNotifyEmail] ||
           (isContractor() &&
             request.resource.data.to ==
               [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.customerEmail])

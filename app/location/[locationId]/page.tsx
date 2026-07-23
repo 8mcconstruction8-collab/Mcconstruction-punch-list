@@ -102,6 +102,7 @@ export default function LocationPage({
         contractorName: "MC Construction & Improvement",
         contractorUid: location.contractorUid,
         contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
+        ownerNotifyEmail: location.ownerNotifyEmail || null,
         groupId: location.groupId || null,
         locationId: location.id,
         roundLabel: newRoundLabel.trim() || `Round ${rounds.length + 1}`,

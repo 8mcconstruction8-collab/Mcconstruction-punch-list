@@ -177,6 +177,32 @@ export async function notifyCustomer(
   }
 }
 
+/**
+ * Queues a notification email to the owner of the group a location
+ * belongs to, if one is on file. Silently does nothing otherwise —
+ * most projects/locations aren't part of a group with an owner email.
+ */
+export async function notifyOwner(
+  projectId: string,
+  ownerNotifyEmail: string | undefined | null,
+  subject: string,
+  bodyLines: string[]
+) {
+  if (!ownerNotifyEmail) return;
+  try {
+    await addDoc(collection(db, "mail"), {
+      to: [ownerNotifyEmail],
+      projectId,
+      message: {
+        subject,
+        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+      }
+    });
+  } catch (err) {
+    console.error("Failed to queue owner notification email", err);
+  }
+}
+
 async function deleteStorageFolder(folderRef: StorageReference) {
   const result = await listAll(folderRef);
   await Promise.all(result.items.map((item) => deleteObject(item)));
@@ -239,13 +265,15 @@ export async function migrateGroupToLocations(groupId: string) {
       groupId,
       contractorUid: project.contractorUid,
       contractorNotifyEmail: project.contractorNotifyEmail || DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
+      ownerNotifyEmail: group.ownerEmail || null,
       roundIds: [projectId],
       createdAt: serverTimestamp()
     });
 
     await updateDoc(doc(db, "projects", projectId), {
       locationId: locationDoc.id,
-      roundLabel: "Round 1"
+      roundLabel: "Round 1",
+      ownerNotifyEmail: group.ownerEmail || null
     });
 
     newLocationIds.push(locationDoc.id);

@@ -39,6 +39,7 @@ import {
   deleteProjectCompletely,
   ensureAnonymousAuth,
   notifyContractor,
+  notifyOwner,
   signOutContractor,
   storage,
   watchAuthState
@@ -221,16 +222,14 @@ export default function ProjectPage({
             : newItemPhotos.length === 1
               ? " with a photo"
               : ` with ${newItemPhotos.length} photos`;
-        notifyContractor(
-          projectId,
-          project.contractorNotifyEmail,
-          `New item — ${project.customerName || "Rounds"}: ${title.trim()}`,
-          [
-            `${who} added a new punch-list item${photoNote}.`,
-            `<strong>${title.trim()}</strong> — ${description.trim()}`,
-            `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
-          ]
-        );
+        const subject = `New item — ${project.customerName || "Rounds"}: ${title.trim()}`;
+        const body = [
+          `${who} added a new punch-list item${photoNote}.`,
+          `<strong>${title.trim()}</strong> — ${description.trim()}`,
+          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+        ];
+        notifyContractor(projectId, project.contractorNotifyEmail, subject, body);
+        notifyOwner(projectId, project.ownerNotifyEmail, subject, body);
       }
     } catch (err) {
       console.error(err);
@@ -257,17 +256,15 @@ export default function ProjectPage({
         address: intakeAddress.trim()
       });
 
-      notifyContractor(
-        projectId,
-        project?.contractorNotifyEmail,
-        `New customer info — ${intakeName.trim()}`,
-        [
-          `${intakeName.trim()} filled in their info for a punch list.`,
-          `Address: ${intakeAddress.trim()}`,
-          intakeEmail.trim() ? `Email: ${intakeEmail.trim()}` : "",
-          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
-        ].filter(Boolean)
-      );
+      const subject = `New customer info — ${intakeName.trim()}`;
+      const body = [
+        `${intakeName.trim()} filled in their info for a punch list.`,
+        `Address: ${intakeAddress.trim()}`,
+        intakeEmail.trim() ? `Email: ${intakeEmail.trim()}` : "",
+        `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+      ].filter(Boolean);
+      notifyContractor(projectId, project?.contractorNotifyEmail, subject, body);
+      notifyOwner(projectId, project?.ownerNotifyEmail, subject, body);
     } catch (err) {
       console.error(err);
       setIntakeError("Couldn't save. Please try again.");
@@ -298,6 +295,7 @@ export default function ProjectPage({
         contractorName: "MC Construction & Improvement",
         contractorUid: location.contractorUid,
         contractorNotifyEmail: location.contractorNotifyEmail || null,
+        ownerNotifyEmail: location.ownerNotifyEmail || null,
         groupId: location.groupId || null,
         locationId: project.locationId,
         roundLabel: label.trim() || `Round ${(location.roundIds?.length || 0) + 1}`,
@@ -310,15 +308,13 @@ export default function ProjectPage({
       });
 
       if (!isContractor) {
-        notifyContractor(
-          roundDoc.id,
-          location.contractorNotifyEmail,
-          `New round started — ${location.name}`,
-          [
-            `${project.customerName || "Someone"} started a new round at ${location.name}: <strong>${label.trim() || "Untitled round"}</strong>.`,
-            `<a href="${window.location.origin}/project/${roundDoc.id}">Open the punch list</a>`
-          ]
-        );
+        const subject = `New round started — ${location.name}`;
+        const body = [
+          `${project.customerName || "Someone"} started a new round at ${location.name}: <strong>${label.trim() || "Untitled round"}</strong>.`,
+          `<a href="${window.location.origin}/project/${roundDoc.id}">Open the punch list</a>`
+        ];
+        notifyContractor(roundDoc.id, location.contractorNotifyEmail, subject, body);
+        notifyOwner(roundDoc.id, location.ownerNotifyEmail, subject, body);
       }
 
       router.push(`/project/${roundDoc.id}`);
@@ -742,6 +738,7 @@ export default function ProjectPage({
               projectClosed={project.status === "closed"}
               contractorNotifyEmail={project.contractorNotifyEmail}
               customerEmail={project.customerEmail}
+              ownerNotifyEmail={project.ownerNotifyEmail}
             />
           ))
         )}

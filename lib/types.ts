@@ -10,6 +10,7 @@ export type Project = {
   contractorName: string;
   contractorUid: string;
   contractorNotifyEmail?: string;
+  ownerNotifyEmail?: string;
   groupId?: string;
   locationId?: string;
   roundLabel?: string;
@@ -32,6 +33,7 @@ export type Location = {
   groupId?: string;
   contractorUid: string;
   contractorNotifyEmail?: string;
+  ownerNotifyEmail?: string;
   roundIds: string[];
   createdAt?: Timestamp;
 };

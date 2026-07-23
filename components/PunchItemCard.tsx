@@ -10,7 +10,7 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { CheckCircle2, History, MessageCircle, Save, Trash2 } from "lucide-react";
-import { db, notifyContractor, notifyCustomer } from "@/lib/firebase";
+import { db, notifyContractor, notifyCustomer, notifyOwner } from "@/lib/firebase";
 import {
   PUNCH_CATEGORIES,
   PUNCH_PRIORITIES,
@@ -28,6 +28,7 @@ type Props = {
   projectClosed?: boolean;
   contractorNotifyEmail?: string;
   customerEmail?: string;
+  ownerNotifyEmail?: string;
 };
 
 const statusLabel: Record<PunchStatus, string> = {
@@ -64,7 +65,8 @@ export default function PunchItemCard({
   mode,
   projectClosed,
   contractorNotifyEmail,
-  customerEmail
+  customerEmail,
+  ownerNotifyEmail
 }: Props) {
   const [assessment, setAssessment] = useState(item.contractorAssessment || "");
   const [status, setStatus] = useState<PunchStatus>(item.status || "open");
@@ -94,15 +96,13 @@ export default function PunchItemCard({
     });
 
     if (kind === "customer") {
-      notifyContractor(
-        projectId,
-        contractorNotifyEmail,
-        `New photo${urls.length > 1 ? "s" : ""} — ${item.title || item.description}`,
-        [
-          `${countLabel === "a photo" ? "A new photo was" : `${countLabel} were`} added to "${item.title || item.description}".`,
-          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
-        ]
-      );
+      const subject = `New photo${urls.length > 1 ? "s" : ""} — ${item.title || item.description}`;
+      const body = [
+        `${countLabel === "a photo" ? "A new photo was" : `${countLabel} were`} added to "${item.title || item.description}".`,
+        `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+      ];
+      notifyContractor(projectId, contractorNotifyEmail, subject, body);
+      notifyOwner(projectId, ownerNotifyEmail, subject, body);
     }
   }
 
@@ -133,17 +133,15 @@ export default function PunchItemCard({
       });
 
       if (entries.length > 0) {
-        notifyCustomer(
-          projectId,
-          customerEmail,
-          `Update on your punch list — ${item.title || item.description}`,
-          [
-            `The contractor updated "${item.title || item.description}".`,
-            `Status: <strong>${statusLabel[status]}</strong>`,
-            assessment.trim() ? `Evaluation: ${assessment.trim()}` : "",
-            `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
-          ].filter(Boolean)
-        );
+        const subject = `Update on your punch list — ${item.title || item.description}`;
+        const body = [
+          `The contractor updated "${item.title || item.description}".`,
+          `Status: <strong>${statusLabel[status]}</strong>`,
+          assessment.trim() ? `Evaluation: ${assessment.trim()}` : "",
+          `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+        ].filter(Boolean);
+        notifyCustomer(projectId, customerEmail, subject, body);
+        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       }
     } finally {
       setSaving(false);
@@ -172,27 +170,23 @@ export default function PunchItemCard({
       setCommentText("");
 
       if (mode === "customer") {
-        notifyContractor(
-          projectId,
-          contractorNotifyEmail,
-          `New comment — ${item.title || item.description}`,
-          [
-            `New comment on "${item.title || item.description}":`,
-            `"${comment.text}"`,
-            `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
-          ]
-        );
+        const subject = `New comment — ${item.title || item.description}`;
+        const body = [
+          `New comment on "${item.title || item.description}":`,
+          `"${comment.text}"`,
+          `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+        ];
+        notifyContractor(projectId, contractorNotifyEmail, subject, body);
+        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       } else {
-        notifyCustomer(
-          projectId,
-          customerEmail,
-          `New comment — ${item.title || item.description}`,
-          [
-            `The contractor commented on "${item.title || item.description}":`,
-            `"${comment.text}"`,
-            `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
-          ]
-        );
+        const subject = `New comment — ${item.title || item.description}`;
+        const body = [
+          `The contractor commented on "${item.title || item.description}":`,
+          `"${comment.text}"`,
+          `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+        ];
+        notifyCustomer(projectId, customerEmail, subject, body);
+        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       }
     } finally {
       setPostingComment(false);

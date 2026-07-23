@@ -96,6 +96,7 @@ export default function HomePage() {
   const [seenStandaloneCount, setSeenStandaloneCount] = useState(0);
   const [activitySeenLoaded, setActivitySeenLoaded] = useState(false);
   const [hasStoredBaseline, setHasStoredBaseline] = useState(true);
+  const [ownerEmailsRepaired, setOwnerEmailsRepaired] = useState(false);
 
   useEffect(() => {
     const unsubscribe = watchAuthState(async (user) => {
@@ -164,6 +165,64 @@ export default function HomePage() {
 
     setHasStoredBaseline(true);
   }, [hasStoredBaseline, loadingLocations, loadingProjects, locations, projects]);
+
+  // Self-heal: locations/rounds that belong to a group but predate the
+  // ownerNotifyEmail field (or were created before the group had an
+  // owner email on file) don't know where to send owner notifications.
+  // Backfill once, quietly, from the group's ownerEmail.
+  useEffect(() => {
+    if (ownerEmailsRepaired) return;
+    if (!contractor || loadingGroups || loadingLocations || loadingProjects) return;
+    if (groups.length === 0) {
+      setOwnerEmailsRepaired(true);
+      return;
+    }
+
+    async function repairOwnerEmails() {
+      const locationRepairs = locations.filter((loc) => {
+        if (loc.ownerNotifyEmail || !loc.groupId) return false;
+        const group = groups.find((g) => g.id === loc.groupId);
+        return !!group?.ownerEmail;
+      });
+      await Promise.all(
+        locationRepairs.map((loc) => {
+          const group = groups.find((g) => g.id === loc.groupId);
+          return updateDoc(doc(db, "locations", loc.id), {
+            ownerNotifyEmail: group?.ownerEmail || null
+          }).catch((err) => console.error("Location owner-email repair failed", loc.id, err));
+        })
+      );
+
+      const projectRepairs = projects.filter((p) => {
+        if (p.ownerNotifyEmail || !p.locationId) return false;
+        const loc = locations.find((l) => l.id === p.locationId);
+        const group = loc?.groupId ? groups.find((g) => g.id === loc.groupId) : null;
+        return !!group?.ownerEmail;
+      });
+      await Promise.all(
+        projectRepairs.map((p) => {
+          const loc = locations.find((l) => l.id === p.locationId);
+          const group = loc?.groupId ? groups.find((g) => g.id === loc.groupId) : null;
+          return updateDoc(doc(db, "projects", p.id), {
+            ownerNotifyEmail: group?.ownerEmail || null
+          }).catch((err) => console.error("Project owner-email repair failed", p.id, err));
+        })
+      );
+
+      setOwnerEmailsRepaired(true);
+    }
+
+    repairOwnerEmails();
+  }, [
+    contractor,
+    loadingGroups,
+    loadingLocations,
+    loadingProjects,
+    groups,
+    locations,
+    projects,
+    ownerEmailsRepaired
+  ]);
 
   function markActivitySeen() {
     const counts: Record<string, number> = {};
@@ -237,12 +296,17 @@ export default function HomePage() {
 
     try {
       setLocationBusy(true);
+      const selectedGroup = locationGroupId
+        ? groups.find((g) => g.id === locationGroupId)
+        : null;
+
       const location = await addDoc(collection(db, "locations"), {
         name: locationName.trim(),
         address: locationAddress.trim() || null,
         groupId: locationGroupId || null,
         contractorUid: contractor.uid,
         contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
+        ownerNotifyEmail: selectedGroup?.ownerEmail || null,
         roundIds: [],
         createdAt: serverTimestamp()
       });
@@ -264,6 +328,44 @@ export default function HomePage() {
       setLocationError("Couldn't create the location. Please try again.");
     } finally {
       setLocationBusy(false);
+    }
+  }
+
+  async function handleEditOwnerEmail(group: Group) {
+    const newEmail = prompt(
+      "Owner's email for notifications (leave blank to remove):",
+      group.ownerEmail || ""
+    );
+    if (newEmail === null) return;
+
+    const cleanEmail = newEmail.trim() || null;
+
+    try {
+      await updateDoc(doc(db, "groups", group.id), { ownerEmail: cleanEmail });
+
+      // Propagate immediately to every location/round already in this
+      // group, instead of waiting for the next background repair pass.
+      const groupLocations = locations.filter((loc) => loc.groupId === group.id);
+      await Promise.all(
+        groupLocations.map((loc) =>
+          updateDoc(doc(db, "locations", loc.id), { ownerNotifyEmail: cleanEmail })
+        )
+      );
+      const groupProjects = projects.filter((p) => p.groupId === group.id);
+      await Promise.all(
+        groupProjects.map((p) =>
+          updateDoc(doc(db, "projects", p.id), { ownerNotifyEmail: cleanEmail })
+        )
+      );
+
+      if (contractor) {
+        loadGroups(contractor.uid);
+        loadLocations(contractor.uid);
+        loadProjects(contractor.uid);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't update the owner's email. Please try again.");
     }
   }
 
@@ -304,6 +406,7 @@ export default function HomePage() {
         contractorName: "MC Construction & Improvement",
         contractorUid: location.contractorUid,
         contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
+        ownerNotifyEmail: location.ownerNotifyEmail || null,
         groupId: location.groupId || null,
         locationId: location.id,
         roundLabel: label.trim() || `Round ${(location.roundIds?.length || 0) + 1}`,
@@ -462,6 +565,9 @@ export default function HomePage() {
         contractorName: "MC Construction & Improvement",
         contractorUid: contractor.uid,
         contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
+        ownerNotifyEmail: selectedLocationId
+          ? selectedLocation?.ownerNotifyEmail || null
+          : null,
         groupId: selectedLocationId
           ? selectedLocation?.groupId || null
           : selectedGroupId || null,
@@ -726,6 +832,14 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="row">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12 }}
+                    onClick={() => handleEditOwnerEmail(group)}
+                    title="Set or change the owner's notification email"
+                  >
+                    Owner email
+                  </button>
                   <button
                     className="btn btn-secondary"
                     style={{ fontSize: 12 }}
