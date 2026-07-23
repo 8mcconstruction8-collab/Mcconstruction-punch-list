@@ -31,13 +31,15 @@ import BrandFooter from "@/components/BrandFooter";
 const statusLabel: Record<PunchStatus, string> = {
   open: "Open",
   in_progress: "In progress",
-  completed: "Completed"
+  completed: "Completed",
+  archived: "Archived"
 };
 
 const statusClass: Record<PunchStatus, string> = {
   open: "badge badge-open",
   in_progress: "badge badge-progress",
-  completed: "badge badge-done"
+  completed: "badge badge-done",
+  archived: "badge badge-neutral"
 };
 
 const categoryLabel = Object.fromEntries(
