@@ -10,7 +10,7 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { CheckCircle2, History, Save, Trash2 } from "lucide-react";
-import { db, notifyContractor } from "@/lib/firebase";
+import { db, notifyContractor, notifyCustomer } from "@/lib/firebase";
 import {
   PUNCH_CATEGORIES,
   PUNCH_PRIORITIES,
@@ -26,6 +26,7 @@ type Props = {
   mode: "customer" | "contractor";
   projectClosed?: boolean;
   contractorNotifyEmail?: string;
+  customerEmail?: string;
 };
 
 const statusLabel: Record<PunchStatus, string> = {
@@ -59,7 +60,8 @@ export default function PunchItemCard({
   projectId,
   mode,
   projectClosed,
-  contractorNotifyEmail
+  contractorNotifyEmail,
+  customerEmail
 }: Props) {
   const [assessment, setAssessment] = useState(item.contractorAssessment || "");
   const [status, setStatus] = useState<PunchStatus>(item.status || "open");
@@ -124,6 +126,20 @@ export default function PunchItemCard({
         ...(entries.length > 0 ? { history: arrayUnion(...entries) } : {}),
         updatedAt: serverTimestamp()
       });
+
+      if (entries.length > 0) {
+        notifyCustomer(
+          projectId,
+          customerEmail,
+          `Update on your punch list — ${item.title || item.description}`,
+          [
+            `The contractor updated "${item.title || item.description}".`,
+            `Status: <strong>${statusLabel[status]}</strong>`,
+            assessment.trim() ? `Evaluation: ${assessment.trim()}` : "",
+            `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+          ].filter(Boolean)
+        );
+      }
     } finally {
       setSaving(false);
     }

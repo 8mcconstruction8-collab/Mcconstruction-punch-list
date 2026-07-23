@@ -62,9 +62,14 @@ service cloud.firestore {
     match /mail/{mailId} {
       allow create: if request.auth != null &&
         request.resource.data.projectId is string &&
-        request.resource.data.to ==
-          [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.contractorNotifyEmail] &&
-        request.resource.data.keys().hasOnly(['to', 'message', 'projectId']);
+        request.resource.data.keys().hasOnly(['to', 'message', 'projectId']) &&
+        (
+          request.resource.data.to ==
+            [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.contractorNotifyEmail] ||
+          (isContractor() &&
+            request.resource.data.to ==
+              [get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.customerEmail])
+        );
       allow read, list, update, delete: if false;
     }
 

@@ -151,6 +151,32 @@ export async function notifyContractor(
   }
 }
 
+/**
+ * Queues a notification email to the customer, only ever called from
+ * contractor-triggered actions (the Firestore rule for the mail
+ * collection only allows this write when the caller is a contractor).
+ */
+export async function notifyCustomer(
+  projectId: string,
+  customerEmail: string | undefined | null,
+  subject: string,
+  bodyLines: string[]
+) {
+  if (!customerEmail) return;
+  try {
+    await addDoc(collection(db, "mail"), {
+      to: [customerEmail],
+      projectId,
+      message: {
+        subject,
+        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+      }
+    });
+  } catch (err) {
+    console.error("Failed to queue customer notification email", err);
+  }
+}
+
 async function deleteStorageFolder(folderRef: StorageReference) {
   const result = await listAll(folderRef);
   await Promise.all(result.items.map((item) => deleteObject(item)));

@@ -714,6 +714,7 @@ export default function ProjectPage({
               mode={isContractor ? mode : "customer"}
               projectClosed={project.status === "closed"}
               contractorNotifyEmail={project.contractorNotifyEmail}
+              customerEmail={project.customerEmail}
             />
           ))
         )}
