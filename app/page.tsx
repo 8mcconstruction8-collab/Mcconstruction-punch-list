@@ -413,6 +413,28 @@ export default function HomePage() {
       );
 
       setProjects(withCounts);
+
+      // Self-heal: projects created before contractorNotifyEmail existed
+      // are missing that field, which silently blocks notification
+      // emails for that project (no error — the code just has nowhere
+      // to send it). Backfill it quietly in the background.
+      const needsRepair = withCounts.filter((p) => !p.contractorNotifyEmail);
+      if (needsRepair.length > 0 && DEFAULT_CONTRACTOR_NOTIFY_EMAIL) {
+        await Promise.all(
+          needsRepair.map((p) =>
+            updateDoc(doc(db, "projects", p.id), {
+              contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL
+            }).catch((err) => console.error("Project repair failed", p.id, err))
+          )
+        );
+        setProjects((current) =>
+          current.map((p) =>
+            needsRepair.some((r) => r.id === p.id)
+              ? { ...p, contractorNotifyEmail: DEFAULT_CONTRACTOR_NOTIFY_EMAIL }
+              : p
+          )
+        );
+      }
     } catch (err) {
       console.error(err);
     } finally {
