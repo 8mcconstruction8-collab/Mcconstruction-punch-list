@@ -9,11 +9,12 @@ import {
   Timestamp,
   updateDoc
 } from "firebase/firestore";
-import { CheckCircle2, History, Save, Trash2 } from "lucide-react";
+import { CheckCircle2, History, MessageCircle, Save, Trash2 } from "lucide-react";
 import { db, notifyContractor, notifyCustomer } from "@/lib/firebase";
 import {
   PUNCH_CATEGORIES,
   PUNCH_PRIORITIES,
+  type Comment,
   type HistoryEntry,
   type PunchItem,
   type PunchStatus
@@ -69,6 +70,8 @@ export default function PunchItemCard({
   const [status, setStatus] = useState<PunchStatus>(item.status || "open");
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
 
   const itemRef = doc(db, "projects", projectId, "items", item.id);
 
@@ -150,6 +153,50 @@ export default function PunchItemCard({
   async function removeItem() {
     if (!confirm("Remove this item?")) return;
     await deleteDoc(itemRef);
+  }
+
+  async function postComment() {
+    if (!commentText.trim()) return;
+
+    setPostingComment(true);
+    try {
+      const comment: Comment = {
+        text: commentText.trim(),
+        by: mode,
+        at: Timestamp.now()
+      };
+      await updateDoc(itemRef, {
+        comments: arrayUnion(comment),
+        updatedAt: serverTimestamp()
+      });
+      setCommentText("");
+
+      if (mode === "customer") {
+        notifyContractor(
+          projectId,
+          contractorNotifyEmail,
+          `New comment — ${item.title || item.description}`,
+          [
+            `New comment on "${item.title || item.description}":`,
+            `"${comment.text}"`,
+            `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
+          ]
+        );
+      } else {
+        notifyCustomer(
+          projectId,
+          customerEmail,
+          `New comment — ${item.title || item.description}`,
+          [
+            `The contractor commented on "${item.title || item.description}":`,
+            `"${comment.text}"`,
+            `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+          ]
+        );
+      }
+    } finally {
+      setPostingComment(false);
+    }
   }
 
   return (
@@ -265,6 +312,51 @@ export default function PunchItemCard({
           </div>
         </div>
       )}
+
+      <div className="divider" />
+
+      <div className="stack">
+        <p className="photo-label">
+          <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
+          Comments
+        </p>
+
+        {item.comments && item.comments.length > 0 && (
+          <ul className="history-list">
+            {[...item.comments]
+              .sort((a, b) => a.at.toMillis() - b.at.toMillis())
+              .map((comment, index) => (
+                <li key={index}>
+                  <strong>{comment.by === "contractor" ? "Contractor" : "Customer"}</strong>
+                  <span className="small"> · {comment.at.toDate().toLocaleString()}</span>
+                  <div>{comment.text}</div>
+                </li>
+              ))}
+          </ul>
+        )}
+
+        {(!projectClosed || mode === "contractor") && (
+          <div className="row no-print">
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Write a comment..."
+              style={{ flex: 1 }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") postComment();
+              }}
+            />
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={postComment}
+              disabled={postingComment || !commentText.trim()}
+            >
+              {postingComment ? "..." : "Post"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {item.history && item.history.length > 0 && (
         <div>

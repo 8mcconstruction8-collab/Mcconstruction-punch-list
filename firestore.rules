@@ -142,7 +142,7 @@ service cloud.firestore {
           (request.auth != null &&
             !projectIsClosed(projectId) &&
             request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['customerPhotos', 'history', 'updatedAt']));
+              .hasOnly(['customerPhotos', 'history', 'comments', 'updatedAt']));
 
         allow delete: if isContractor();
       }

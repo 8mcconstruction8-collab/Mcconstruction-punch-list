@@ -86,6 +86,13 @@ export type HistoryEntry = {
   at: Timestamp;
 };
 
+export type Comment = {
+  text: string;
+  by: "customer" | "contractor";
+  authorName?: string;
+  at: Timestamp;
+};
+
 export type PunchItem = {
   id: string;
   projectId: string;
@@ -100,6 +107,7 @@ export type PunchItem = {
   status: PunchStatus;
   createdBy?: "customer" | "contractor";
   history?: HistoryEntry[];
+  comments?: Comment[];
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
