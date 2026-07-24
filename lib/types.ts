@@ -14,6 +14,7 @@ export type Project = {
   groupId?: string;
   locationId?: string;
   roundLabel?: string;
+  managerName?: string;
   notes?: string;
   status?: ProjectStatus;
   createdAt?: Timestamp;
@@ -108,6 +109,7 @@ export type PunchItem = {
   contractorPhotos: string[];
   status: PunchStatus;
   estimate?: number;
+  approvalStatus?: "pending" | "approved" | "not_approved";
   createdBy?: "customer" | "contractor";
   history?: HistoryEntry[];
   comments?: Comment[];

@@ -126,7 +126,10 @@ service cloud.firestore {
         (request.auth != null &&
           (resource.data.customerName == '' || resource.data.address == '') &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['customerName', 'customerEmail', 'address']));
+            .hasOnly(['customerName', 'customerEmail', 'address'])) ||
+        (request.auth != null &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['managerName']));
 
       match /items/{itemId} {
         allow get, list: if request.auth != null;

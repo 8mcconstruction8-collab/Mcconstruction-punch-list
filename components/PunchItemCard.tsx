@@ -85,6 +85,9 @@ export default function PunchItemCard({
   const [estimate, setEstimate] = useState(
     item.estimate !== undefined && item.estimate !== null ? String(item.estimate) : ""
   );
+  const [approvalStatus, setApprovalStatus] = useState<
+    "pending" | "approved" | "not_approved"
+  >(item.approvalStatus || "pending");
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -144,6 +147,7 @@ export default function PunchItemCard({
         contractorAssessment: assessment.trim(),
         status,
         estimate: estimate.trim() === "" ? null : Number(estimate),
+        approvalStatus,
         ...(entries.length > 0 ? { history: arrayUnion(...entries) } : {}),
         updatedAt: serverTimestamp()
       });
@@ -177,19 +181,54 @@ export default function PunchItemCard({
     setSendingOwnerUpdate(true);
     try {
       const dateStr = new Date().toLocaleDateString();
-      notifyOwner(
-        projectId,
-        ownerNotifyEmail,
-        `Update — ${locationName || "Rounds"}: ${item.title || item.description}`,
-        [
-          `<strong>Location:</strong> ${locationName || "—"}`,
-          `<strong>Date:</strong> ${dateStr}`,
-          `<strong>Work description:</strong> ${item.description}`,
-          assessment.trim() ? `<strong>Contractor update:</strong> ${assessment.trim()}` : "",
-          `<strong>Status:</strong> ${statusLabel[status]}`,
-          `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
-        ]
-      );
+      const taskName = item.title || "Item";
+      const briefDescription =
+        item.description.length > 60
+          ? `${item.description.slice(0, 60).trim()}...`
+          : item.description;
+      const subject = `${taskName} — ${locationName || "Rounds"} — ${briefDescription}`;
+
+      const approvalBadge =
+        approvalStatus === "approved"
+          ? `<span style="background:#dff7ea;color:#12613f;padding:2px 8px;border-radius:6px;font-weight:700;">Approved</span>`
+          : approvalStatus === "not_approved"
+            ? `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px;font-weight:700;">Not approved</span>`
+            : `<span style="background:#fff0c2;color:#7a4b00;padding:2px 8px;border-radius:6px;font-weight:700;">Pending</span>`;
+
+      const beforePhoto = item.customerPhotos?.[0];
+      const afterPhoto = item.contractorPhotos?.[0];
+
+      let photosLine = "";
+      if (beforePhoto || afterPhoto) {
+        const photoCell = (label: string, url?: string) =>
+          url
+            ? `<div style="flex:1;min-width:0;">
+                 <div style="font-size:12px;color:#888888;margin-bottom:6px;">${label}</div>
+                 <img src="${url}" alt="${label}"
+                      style="width:100%;max-width:200px;height:auto;border-radius:10px;
+                             border:1px solid #eee;display:block;" />
+               </div>`
+            : "";
+        photosLine = `__RAW__<div style="display:flex;gap:12px;margin:0 0 16px;">${photoCell(
+          "Before",
+          beforePhoto
+        )}${photoCell("After", afterPhoto)}</div>`;
+      }
+
+      const body = [
+        `<strong>Location:</strong> ${locationName || "—"}`,
+        `<strong>Date:</strong> ${dateStr}`,
+        `<strong>Work description:</strong> ${item.description}`,
+        assessment.trim() ? `<strong>Contractor update:</strong> ${assessment.trim()}` : "",
+        `<strong>Status:</strong> ${statusLabel[status]}`,
+        estimate.trim()
+          ? `<strong>Estimate:</strong> $${Number(estimate).toLocaleString()} &nbsp; ${approvalBadge}`
+          : "",
+        photosLine,
+        `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+      ].filter(Boolean);
+
+      notifyOwner(projectId, ownerNotifyEmail, subject, body);
       alert("Update sent to the owner.");
     } finally {
       setSendingOwnerUpdate(false);
@@ -264,6 +303,12 @@ export default function PunchItemCard({
         {typeof item.estimate === "number" && item.estimate > APPROVAL_THRESHOLD && (
           <span className="badge badge-priority-high">Needs approval</span>
         )}
+        {item.approvalStatus === "approved" && (
+          <span className="badge badge-done">Approved</span>
+        )}
+        {item.approvalStatus === "not_approved" && (
+          <span className="badge badge-priority-high">Not approved</span>
+        )}
       </div>
 
       {item.title && <p style={{ margin: 0 }}>{item.description}</p>}
@@ -312,6 +357,20 @@ export default function PunchItemCard({
                 onChange={(e) => setEstimate(e.target.value)}
                 placeholder={`Above $${APPROVAL_THRESHOLD} needs owner approval`}
               />
+            </label>
+
+            <label>
+              Approval
+              <select
+                value={approvalStatus}
+                onChange={(e) =>
+                  setApprovalStatus(e.target.value as typeof approvalStatus)
+                }
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="not_approved">Not approved</option>
+              </select>
             </label>
 
             <label>

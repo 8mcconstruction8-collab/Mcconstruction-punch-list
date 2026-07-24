@@ -80,6 +80,9 @@ export default function ProjectPage({
   const [intakeAddress, setIntakeAddress] = useState("");
   const [savingIntake, setSavingIntake] = useState(false);
   const [intakeError, setIntakeError] = useState("");
+  const [managerNameInput, setManagerNameInput] = useState("");
+  const [savingManagerName, setSavingManagerName] = useState(false);
+  const [showManagerNameEdit, setShowManagerNameEdit] = useState(false);
   const [newItemPhotos, setNewItemPhotos] = useState<File[]>([]);
 
   useEffect(() => {
@@ -270,6 +273,23 @@ export default function ProjectPage({
     }
   }
 
+  async function saveManagerName(event: FormEvent) {
+    event.preventDefault();
+    if (!managerNameInput.trim()) return;
+
+    setSavingManagerName(true);
+    try {
+      await updateDoc(doc(db, "projects", projectId), {
+        managerName: managerNameInput.trim()
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't save your name. Please try again.");
+    } finally {
+      setSavingManagerName(false);
+    }
+  }
+
   async function handleStartNewRound() {
     if (!project?.locationId) return;
 
@@ -431,6 +451,50 @@ export default function ProjectPage({
     );
   }
 
+  const needsManagerName =
+    !isContractor && !!project.locationId && !project.managerName?.trim();
+
+  if (needsManagerName) {
+    return (
+      <main className="shell">
+        <header className="brand">
+          <img src="/brand/rounds-mark.png" alt="Rounds" className="logo" />
+          <div>
+            <h1>Rounds</h1>
+            
+          </div>
+        </header>
+
+        <section className="card stack">
+          <div>
+            <h2 style={{ marginBottom: 4 }}>Who's this?</h2>
+            <p className="small">
+              This location shares one link between managers — your name
+              helps the team know who's working this punch list.
+            </p>
+          </div>
+
+          <form className="stack" onSubmit={saveManagerName}>
+            <label>
+              Your name
+              <input
+                value={managerNameInput}
+                onChange={(e) => setManagerNameInput(e.target.value)}
+                placeholder="Ex.: John Smith"
+                autoComplete="name"
+              />
+            </label>
+
+            <button className="btn btn-primary btn-wide" disabled={savingManagerName}>
+              {savingManagerName ? "Saving..." : "Continue"}
+            </button>
+          </form>
+        </section>
+        <BrandFooter />
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header className="brand">
@@ -489,6 +553,70 @@ export default function ProjectPage({
               <p className="small" style={{ margin: 0 }}>
                 {project.roundLabel}
               </p>
+            )}
+            {project.locationId && (
+              <div style={{ marginTop: 2 }}>
+                {!showManagerNameEdit ? (
+                  <p className="small" style={{ margin: 0 }}>
+                    {project.managerName ? (
+                      <>Manager: <strong>{project.managerName}</strong></>
+                    ) : (
+                      "Manager: not identified yet"
+                    )}{" "}
+                    <button
+                      className="no-print"
+                      type="button"
+                      onClick={() => {
+                        setManagerNameInput(project.managerName || "");
+                        setShowManagerNameEdit(true);
+                      }}
+                      style={{
+                        border: "none",
+                        background: "none",
+                        color: "#666",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontSize: 12
+                      }}
+                    >
+                      edit
+                    </button>
+                  </p>
+                ) : (
+                  <form
+                    className="row no-print"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await saveManagerName(e);
+                      setShowManagerNameEdit(false);
+                    }}
+                  >
+                    <input
+                      value={managerNameInput}
+                      onChange={(e) => setManagerNameInput(e.target.value)}
+                      placeholder="Manager's name"
+                      style={{ fontSize: 13, padding: "4px 8px" }}
+                      autoFocus
+                    />
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: 12, padding: "4px 10px" }}
+                      disabled={savingManagerName}
+                    >
+                      {savingManagerName ? "..." : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: 12, padding: "4px 10px" }}
+                      onClick={() => setShowManagerNameEdit(false)}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
           </div>
           <div className="row">

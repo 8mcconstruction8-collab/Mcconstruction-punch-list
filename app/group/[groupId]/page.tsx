@@ -2,10 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, doc, getCountFromServer, getDoc, where, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { Search } from "lucide-react";
 import { db, ensureAnonymousAuth, watchAuthState } from "@/lib/firebase";
-import type { Group, Location, Project } from "@/lib/types";
+import type { Group, Location, Project, PunchItem } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
 import InstallAppButton from "@/components/InstallAppButton";
 
@@ -14,6 +14,8 @@ type LocationSummary = Location & {
   completedCount: number;
   hasOpenRound: boolean;
   roundCount: number;
+  pendingValue: number;
+  acceptedValue: number;
 };
 
 export default function GroupPage({
@@ -50,6 +52,8 @@ export default function GroupPage({
           let itemCount = 0;
           let completedCount = 0;
           let hasOpenRound = false;
+          let pendingValue = 0;
+          let acceptedValue = 0;
 
           await Promise.all(
             roundIds.map(async (roundId) => {
@@ -58,13 +62,22 @@ export default function GroupPage({
               const round = roundSnap.data() as Project;
               if (round.status !== "closed") hasOpenRound = true;
 
-              const itemsRef = collection(db, "projects", roundId, "items");
-              const [totalSnap, completedSnap] = await Promise.all([
-                getCountFromServer(itemsRef),
-                getCountFromServer(query(itemsRef, where("status", "==", "completed")))
-              ]);
-              itemCount += totalSnap.data().count;
-              completedCount += completedSnap.data().count;
+              const itemsSnap = await getDocs(collection(db, "projects", roundId, "items"));
+              const roundItems = itemsSnap.docs.map((d) => d.data() as PunchItem);
+
+              itemCount += roundItems.length;
+              completedCount += roundItems.filter(
+                (it) => it.status === "completed" || it.status === "archived"
+              ).length;
+
+              roundItems.forEach((it) => {
+                if (typeof it.estimate !== "number") return;
+                if (it.approvalStatus === "approved") {
+                  acceptedValue += it.estimate;
+                } else {
+                  pendingValue += it.estimate;
+                }
+              });
             })
           );
 
@@ -73,7 +86,9 @@ export default function GroupPage({
             itemCount,
             completedCount,
             hasOpenRound,
-            roundCount: roundIds.length
+            roundCount: roundIds.length,
+            pendingValue,
+            acceptedValue
           } as LocationSummary;
         })
       );
@@ -108,17 +123,8 @@ export default function GroupPage({
     (sum, loc) => sum + (loc.itemCount - loc.completedCount),
     0
   );
-  const avgCompletion =
-    locations.length === 0
-      ? 0
-      : Math.round(
-          (locations.reduce(
-            (sum, loc) => sum + (loc.itemCount === 0 ? 0 : loc.completedCount / loc.itemCount),
-            0
-          ) /
-            locations.length) *
-            100
-        );
+  const totalPendingValue = locations.reduce((sum, loc) => sum + loc.pendingValue, 0);
+  const totalAcceptedValue = locations.reduce((sum, loc) => sum + loc.acceptedValue, 0);
 
   return (
     <main className="shell">
@@ -140,8 +146,12 @@ export default function GroupPage({
           <div className="label">Open items</div>
         </div>
         <div className="summary-card">
-          <div className="num">{avgCompletion}%</div>
-          <div className="label">Avg. completion</div>
+          <div className="num">${totalPendingValue.toLocaleString()}</div>
+          <div className="label">Pending approval</div>
+        </div>
+        <div className="summary-card">
+          <div className="num">${totalAcceptedValue.toLocaleString()}</div>
+          <div className="label">Approved</div>
         </div>
       </section>
 

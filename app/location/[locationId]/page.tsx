@@ -28,6 +28,7 @@ import InstallAppButton from "@/components/InstallAppButton";
 type RoundSummary = {
   id: string;
   roundLabel: string;
+  managerName?: string;
   status?: ProjectStatus;
   createdAt?: Project["createdAt"];
 };
@@ -67,6 +68,7 @@ export default function LocationPage({
           return {
             id: snap.id,
             roundLabel: data.roundLabel || "Round",
+            managerName: data.managerName,
             status: data.status,
             createdAt: data.createdAt
           } as RoundSummary;
@@ -186,7 +188,14 @@ export default function LocationPage({
                 href={`/project/${round.id}`}
                 className="btn btn-secondary row between"
               >
-                <span>{round.roundLabel}</span>
+                <span>
+                  {round.roundLabel}
+                  {round.managerName && (
+                    <span className="small" style={{ display: "block", fontWeight: 400 }}>
+                      {round.managerName}
+                    </span>
+                  )}
+                </span>
                 <span
                   className={
                     round.status === "closed" ? "badge badge-neutral" : "badge badge-open"
