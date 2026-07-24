@@ -108,6 +108,7 @@ export type PunchItem = {
   contractorPhotos: string[];
   status: PunchStatus;
   estimate?: number;
+  approvalStatus?: "pending" | "approved" | "not_approved";
   createdBy?: "customer" | "contractor";
   history?: HistoryEntry[];
   comments?: Comment[];
