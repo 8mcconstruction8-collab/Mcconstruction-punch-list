@@ -137,24 +137,9 @@ export const DEFAULT_CONTRACTOR_NOTIFY_EMAIL =
  * — turns it into a proper button instead of leaving it as bare text.
  */
 function buildNotificationEmailHtml(subject: string, bodyLines: string[]): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const logoUrl = `${origin}/brand/rounds-mark.png`;
-
-  // If the caller built the subject as "Task — Location — Description",
-  // use just the first segment as the in-body heading — repeating the
-  // whole subject line inside the email too is redundant once it's
-  // already longer and descriptive in the inbox.
-  const heading = subject.includes(" — ") ? subject.split(" — ")[0] : subject;
-
   const parts = bodyLines
     .filter((line) => line && line.trim().length > 0)
     .map((line) => {
-      // A caller-prebuilt block of raw HTML (e.g. a side-by-side photo
-      // row) — pass it straight through, no wrapping or reformatting.
-      if (line.startsWith("__RAW__")) {
-        return line.slice(7);
-      }
-
       const linkMatch = line.match(/<a href="([^"]+)">([^<]+)<\/a>/);
       if (linkMatch) {
         const [, url, label] = linkMatch;
@@ -168,32 +153,6 @@ function buildNotificationEmailHtml(subject: string, bodyLines: string[]): strin
             </a>
           </div>`;
       }
-
-      const imgMatch = line.match(/<img src="([^"]+)" alt="([^"]*)"\s*\/?>/);
-      if (imgMatch) {
-        const [, src, alt] = imgMatch;
-        return `
-          <div style="margin:0 0 14px;">
-            <div style="font-size:12px;color:#888888;margin-bottom:6px;">${alt}</div>
-            <img src="${src}" alt="${alt}"
-                 style="max-width:220px;max-height:220px;border-radius:10px;
-                        border:1px solid #eee;display:block;" />
-          </div>`;
-      }
-
-      // "Label: value" lines get their own small-caps label above the
-      // value, instead of a single run-on line of bold-then-plain text.
-      const fieldMatch = line.match(/^<strong>([^<]+):<\/strong>\s*(.*)$/);
-      if (fieldMatch) {
-        const [, label, value] = fieldMatch;
-        return `
-          <div style="margin:0 0 13px;">
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;
-                        color:#999999;margin-bottom:2px;">${label}</div>
-            <div style="font-size:15px;color:#111111;line-height:1.45;">${value}</div>
-          </div>`;
-      }
-
       return `<p style="margin:0 0 10px;color:#333333;font-size:15px;line-height:1.5;">${line}</p>`;
     });
 
@@ -201,27 +160,17 @@ function buildNotificationEmailHtml(subject: string, bodyLines: string[]): strin
     <div style="font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;padding:24px;">
       <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:14px;
                   overflow:hidden;border:1px solid #eaeaea;">
-        <div style="background:#111111;padding:16px 24px;display:flex;align-items:center;">
-          <img src="${logoUrl}" alt="Rounds" width="32" height="32"
-               style="width:32px;height:32px;display:block;margin-right:10px;" />
-          <div>
-            <div style="color:#ffffff;font-weight:900;font-size:16px;letter-spacing:-0.3px;">
-              Rounds
-            </div>
-            <div style="color:#999999;font-size:10px;margin-top:1px;">
-              by MC Construction &amp; Improvement
-            </div>
+        <div style="background:#111111;padding:18px 24px;">
+          <div style="color:#ffffff;font-weight:900;font-size:17px;letter-spacing:-0.3px;">
+            Rounds
+          </div>
+          <div style="color:#999999;font-size:11px;margin-top:2px;">
+            by MC Construction &amp; Improvement
           </div>
         </div>
         <div style="padding:24px;">
-          <h2 style="margin:0 0 4px;font-size:17px;color:#111111;">${heading}</h2>
-          <div style="height:1px;background:#eeeeee;margin:0 0 18px;"></div>
+          <h2 style="margin:0 0 14px;font-size:16px;color:#111111;">${subject}</h2>
           ${parts.join("")}
-        </div>
-        <div style="padding:14px 24px;background:#fafafa;border-top:1px solid #eeeeee;">
-          <p style="margin:0;font-size:11px;color:#aaaaaa;">
-            Automated update from Rounds, your MC Construction &amp; Improvement punch list.
-          </p>
         </div>
       </div>
     </div>`;

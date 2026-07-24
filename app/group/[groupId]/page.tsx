@@ -108,6 +108,17 @@ export default function GroupPage({
     (sum, loc) => sum + (loc.itemCount - loc.completedCount),
     0
   );
+  const avgCompletion =
+    locations.length === 0
+      ? 0
+      : Math.round(
+          (locations.reduce(
+            (sum, loc) => sum + (loc.itemCount === 0 ? 0 : loc.completedCount / loc.itemCount),
+            0
+          ) /
+            locations.length) *
+            100
+        );
 
   return (
     <main className="shell">
@@ -127,6 +138,10 @@ export default function GroupPage({
         <div className="summary-card">
           <div className="num">{totalOpen}</div>
           <div className="label">Open items</div>
+        </div>
+        <div className="summary-card">
+          <div className="num">{avgCompletion}%</div>
+          <div className="label">Avg. completion</div>
         </div>
       </section>
 
