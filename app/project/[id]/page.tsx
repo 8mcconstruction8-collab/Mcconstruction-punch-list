@@ -39,7 +39,6 @@ import {
   deleteProjectCompletely,
   ensureAnonymousAuth,
   notifyContractor,
-  notifyOwner,
   signOutContractor,
   storage,
   watchAuthState
@@ -229,7 +228,6 @@ export default function ProjectPage({
           `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
         ];
         notifyContractor(projectId, project.contractorNotifyEmail, subject, body);
-        notifyOwner(projectId, project.ownerNotifyEmail, subject, body);
       }
     } catch (err) {
       console.error(err);
@@ -264,7 +262,6 @@ export default function ProjectPage({
         `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
       ].filter(Boolean);
       notifyContractor(projectId, project?.contractorNotifyEmail, subject, body);
-      notifyOwner(projectId, project?.ownerNotifyEmail, subject, body);
     } catch (err) {
       console.error(err);
       setIntakeError("Couldn't save. Please try again.");
@@ -314,7 +311,6 @@ export default function ProjectPage({
           `<a href="${window.location.origin}/project/${roundDoc.id}">Open the punch list</a>`
         ];
         notifyContractor(roundDoc.id, location.contractorNotifyEmail, subject, body);
-        notifyOwner(roundDoc.id, location.ownerNotifyEmail, subject, body);
       }
 
       router.push(`/project/${roundDoc.id}`);
@@ -739,6 +735,7 @@ export default function ProjectPage({
               contractorNotifyEmail={project.contractorNotifyEmail}
               customerEmail={project.customerEmail}
               ownerNotifyEmail={project.ownerNotifyEmail}
+              locationName={project.customerName}
             />
           ))
         )}

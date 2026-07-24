@@ -107,6 +107,7 @@ export type PunchItem = {
   contractorAssessment: string;
   contractorPhotos: string[];
   status: PunchStatus;
+  estimate?: number;
   createdBy?: "customer" | "contractor";
   history?: HistoryEntry[];
   comments?: Comment[];

@@ -9,7 +9,15 @@ import {
   Timestamp,
   updateDoc
 } from "firebase/firestore";
-import { CheckCircle2, History, MessageCircle, Save, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  DollarSign,
+  History,
+  Mail,
+  MessageCircle,
+  Save,
+  Trash2
+} from "lucide-react";
 import { db, notifyContractor, notifyCustomer, notifyOwner } from "@/lib/firebase";
 import {
   PUNCH_CATEGORIES,
@@ -29,7 +37,10 @@ type Props = {
   contractorNotifyEmail?: string;
   customerEmail?: string;
   ownerNotifyEmail?: string;
+  locationName?: string;
 };
+
+const APPROVAL_THRESHOLD = 500;
 
 const statusLabel: Record<PunchStatus, string> = {
   open: "Open",
@@ -66,14 +77,19 @@ export default function PunchItemCard({
   projectClosed,
   contractorNotifyEmail,
   customerEmail,
-  ownerNotifyEmail
+  ownerNotifyEmail,
+  locationName
 }: Props) {
   const [assessment, setAssessment] = useState(item.contractorAssessment || "");
   const [status, setStatus] = useState<PunchStatus>(item.status || "open");
+  const [estimate, setEstimate] = useState(
+    item.estimate !== undefined && item.estimate !== null ? String(item.estimate) : ""
+  );
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [sendingOwnerUpdate, setSendingOwnerUpdate] = useState(false);
 
   const itemRef = doc(db, "projects", projectId, "items", item.id);
 
@@ -102,7 +118,6 @@ export default function PunchItemCard({
         `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
       ];
       notifyContractor(projectId, contractorNotifyEmail, subject, body);
-      notifyOwner(projectId, ownerNotifyEmail, subject, body);
     }
   }
 
@@ -128,6 +143,7 @@ export default function PunchItemCard({
       await updateDoc(itemRef, {
         contractorAssessment: assessment.trim(),
         status,
+        estimate: estimate.trim() === "" ? null : Number(estimate),
         ...(entries.length > 0 ? { history: arrayUnion(...entries) } : {}),
         updatedAt: serverTimestamp()
       });
@@ -141,7 +157,6 @@ export default function PunchItemCard({
           `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
         ].filter(Boolean);
         notifyCustomer(projectId, customerEmail, subject, body);
-        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       }
     } finally {
       setSaving(false);
@@ -151,6 +166,34 @@ export default function PunchItemCard({
   async function removeItem() {
     if (!confirm("Remove this item?")) return;
     await deleteDoc(itemRef);
+  }
+
+  async function sendOwnerUpdate() {
+    if (!ownerNotifyEmail) {
+      alert("No owner email is on file for this group yet.");
+      return;
+    }
+
+    setSendingOwnerUpdate(true);
+    try {
+      const dateStr = new Date().toLocaleDateString();
+      notifyOwner(
+        projectId,
+        ownerNotifyEmail,
+        `Update — ${locationName || "Rounds"}: ${item.title || item.description}`,
+        [
+          `<strong>Location:</strong> ${locationName || "—"}`,
+          `<strong>Date:</strong> ${dateStr}`,
+          `<strong>Work description:</strong> ${item.description}`,
+          assessment.trim() ? `<strong>Contractor update:</strong> ${assessment.trim()}` : "",
+          `<strong>Status:</strong> ${statusLabel[status]}`,
+          `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
+        ]
+      );
+      alert("Update sent to the owner.");
+    } finally {
+      setSendingOwnerUpdate(false);
+    }
   }
 
   async function postComment() {
@@ -177,7 +220,6 @@ export default function PunchItemCard({
           `<a href="${window.location.origin}/project/${projectId}">Open the punch list</a>`
         ];
         notifyContractor(projectId, contractorNotifyEmail, subject, body);
-        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       } else {
         const subject = `New comment — ${item.title || item.description}`;
         const body = [
@@ -186,7 +228,6 @@ export default function PunchItemCard({
           `<a href="${window.location.origin}/project/${projectId}">View the punch list</a>`
         ];
         notifyCustomer(projectId, customerEmail, subject, body);
-        notifyOwner(projectId, ownerNotifyEmail, subject, body);
       }
     } finally {
       setPostingComment(false);
@@ -217,6 +258,12 @@ export default function PunchItemCard({
           </span>
         )}
         {item.room && <span className="badge badge-neutral">{item.room}</span>}
+        {typeof item.estimate === "number" && (
+          <span className="badge badge-neutral">${item.estimate.toLocaleString()}</span>
+        )}
+        {typeof item.estimate === "number" && item.estimate > APPROVAL_THRESHOLD && (
+          <span className="badge badge-priority-high">Needs approval</span>
+        )}
       </div>
 
       {item.title && <p style={{ margin: 0 }}>{item.description}</p>}
@@ -256,6 +303,18 @@ export default function PunchItemCard({
             />
 
             <label>
+              Estimate ($)
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={estimate}
+                onChange={(e) => setEstimate(e.target.value)}
+                placeholder={`Above $${APPROVAL_THRESHOLD} needs owner approval`}
+              />
+            </label>
+
+            <label>
               Status
               <select
                 value={status}
@@ -282,6 +341,15 @@ export default function PunchItemCard({
               >
                 {status === "completed" ? <CheckCircle2 size={17} /> : <Save size={17} />}
                 {saving ? "Saving..." : "Save update"}
+              </button>
+              <button
+                className="btn btn-secondary row"
+                onClick={sendOwnerUpdate}
+                disabled={sendingOwnerUpdate}
+                title="Send this item's current status to the group owner"
+              >
+                <Mail size={17} />
+                {sendingOwnerUpdate ? "Sending..." : "Send update to owner"}
               </button>
               <button className="btn btn-danger row" onClick={removeItem}>
                 <Trash2 size={17} />

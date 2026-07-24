@@ -130,6 +130,52 @@ export const DEFAULT_CONTRACTOR_NOTIFY_EMAIL =
  * contractorNotifyEmail on file (e.g. projects created before this
  * feature existed) — a missing notification is better than a crash.
  */
+/**
+ * Builds a simple branded HTML email: dark header with the Rounds
+ * wordmark, the subject as a heading, each body line as its own
+ * paragraph, and — if a line is a raw "Open the punch list"-style link
+ * — turns it into a proper button instead of leaving it as bare text.
+ */
+function buildNotificationEmailHtml(subject: string, bodyLines: string[]): string {
+  const parts = bodyLines
+    .filter((line) => line && line.trim().length > 0)
+    .map((line) => {
+      const linkMatch = line.match(/<a href="([^"]+)">([^<]+)<\/a>/);
+      if (linkMatch) {
+        const [, url, label] = linkMatch;
+        return `
+          <div style="margin:22px 0 4px;">
+            <a href="${url}"
+               style="background:#111111;color:#ffffff;text-decoration:none;
+                      padding:12px 22px;border-radius:10px;font-weight:700;
+                      font-size:14px;display:inline-block;">
+              ${label} →
+            </a>
+          </div>`;
+      }
+      return `<p style="margin:0 0 10px;color:#333333;font-size:15px;line-height:1.5;">${line}</p>`;
+    });
+
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;padding:24px;">
+      <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:14px;
+                  overflow:hidden;border:1px solid #eaeaea;">
+        <div style="background:#111111;padding:18px 24px;">
+          <div style="color:#ffffff;font-weight:900;font-size:17px;letter-spacing:-0.3px;">
+            Rounds
+          </div>
+          <div style="color:#999999;font-size:11px;margin-top:2px;">
+            by MC Construction &amp; Improvement
+          </div>
+        </div>
+        <div style="padding:24px;">
+          <h2 style="margin:0 0 14px;font-size:16px;color:#111111;">${subject}</h2>
+          ${parts.join("")}
+        </div>
+      </div>
+    </div>`;
+}
+
 export async function notifyContractor(
   projectId: string,
   contractorNotifyEmail: string | undefined | null,
@@ -143,7 +189,7 @@ export async function notifyContractor(
       projectId,
       message: {
         subject,
-        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+        html: buildNotificationEmailHtml(subject, bodyLines)
       }
     });
   } catch (err) {
@@ -169,7 +215,7 @@ export async function notifyCustomer(
       projectId,
       message: {
         subject,
-        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+        html: buildNotificationEmailHtml(subject, bodyLines)
       }
     });
   } catch (err) {
@@ -179,8 +225,9 @@ export async function notifyCustomer(
 
 /**
  * Queues a notification email to the owner of the group a location
- * belongs to, if one is on file. Silently does nothing otherwise —
- * most projects/locations aren't part of a group with an owner email.
+ * belongs to, if one is on file. Only fired for headline events (a new
+ * round starting, a new manager coming online) — not every item, photo
+ * or comment, so owners don't get flooded.
  */
 export async function notifyOwner(
   projectId: string,
@@ -195,7 +242,7 @@ export async function notifyOwner(
       projectId,
       message: {
         subject,
-        html: bodyLines.map((line) => `<p>${line}</p>`).join("")
+        html: buildNotificationEmailHtml(subject, bodyLines)
       }
     });
   } catch (err) {

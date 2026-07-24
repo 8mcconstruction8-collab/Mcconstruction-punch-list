@@ -19,8 +19,7 @@ import {
   db,
   DEFAULT_CONTRACTOR_NOTIFY_EMAIL,
   ensureAnonymousAuth,
-  notifyContractor,
-  watchAuthState
+  notifyContractor
 } from "@/lib/firebase";
 import type { Location, Project, ProjectStatus } from "@/lib/types";
 import BrandFooter from "@/components/BrandFooter";
@@ -48,8 +47,8 @@ export default function LocationPage({
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = watchAuthState(async (user) => {
-      if (!user) await ensureAnonymousAuth();
+    async function load() {
+      await ensureAnonymousAuth();
 
       const locationSnap = await getDoc(doc(db, "locations", locationId));
       if (!locationSnap.exists()) {
@@ -85,9 +84,9 @@ export default function LocationPage({
       if (validRounds.length === 1) {
         router.replace(`/project/${validRounds[0].id}`);
       }
-    });
+    }
 
-    return unsubscribe;
+    load();
   }, [locationId, router]);
 
   async function startNewRound(event: FormEvent) {
