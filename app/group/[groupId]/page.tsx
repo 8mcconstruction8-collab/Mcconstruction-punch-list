@@ -186,7 +186,7 @@ export default function GroupPage({
             return (
               <Link
                 key={loc.id}
-                href={`/location/${loc.id}`}
+                href={`/location/${loc.id}?viewer=owner`}
                 className="card project-row"
                 style={{ display: "block", marginTop: 12 }}
               >

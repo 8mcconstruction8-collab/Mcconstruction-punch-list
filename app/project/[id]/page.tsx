@@ -56,11 +56,15 @@ import BrandFooter from "@/components/BrandFooter";
 import InstallAppButton from "@/components/InstallAppButton";
 
 export default function ProjectPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ viewer?: string }>;
 }) {
   const { id: projectId } = use(params);
+  const { viewer } = use(searchParams);
+  const isOwnerViewer = viewer === "owner";
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [locationGroupId, setLocationGroupId] = useState<string | null>(null);
@@ -452,7 +456,10 @@ export default function ProjectPage({
   }
 
   const needsManagerName =
-    !isContractor && !!project.locationId && !project.managerName?.trim();
+    !isContractor &&
+    !isOwnerViewer &&
+    !!project.locationId &&
+    !project.managerName?.trim();
 
   if (needsManagerName) {
     return (
@@ -509,7 +516,7 @@ export default function ProjectPage({
         {project.locationId && (
           <div className="row between no-print" style={{ marginBottom: 8, flexWrap: "wrap" }}>
             <Link
-              href={`/location/${project.locationId}`}
+              href={`/location/${project.locationId}${isOwnerViewer ? "?viewer=owner" : ""}`}
               className="small row"
               style={{ display: "inline-flex" }}
             >
@@ -519,12 +526,16 @@ export default function ProjectPage({
             <div className="row" style={{ flexWrap: "wrap" }}>
               {locationGroupId && (
                 <Link
-                  href={`/group/${locationGroupId}/select`}
+                  href={
+                    isOwnerViewer
+                      ? `/group/${locationGroupId}`
+                      : `/group/${locationGroupId}/select`
+                  }
                   className="btn btn-secondary row"
                   style={{ fontSize: 12, padding: "6px 10px" }}
                 >
                   <MapPin size={13} />
-                  Back to locations
+                  {isOwnerViewer ? "All locations" : "Back to locations"}
                 </Link>
               )}
               <button

@@ -34,11 +34,15 @@ type RoundSummary = {
 };
 
 export default function LocationPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ locationId: string }>;
+  searchParams: Promise<{ viewer?: string }>;
 }) {
   const { locationId } = use(params);
+  const { viewer } = use(searchParams);
+  const isOwnerViewer = viewer === "owner";
   const router = useRouter();
   const [location, setLocation] = useState<Location | null>(null);
   const [rounds, setRounds] = useState<RoundSummary[]>([]);
@@ -84,12 +88,14 @@ export default function LocationPage({
 
       // Nothing to choose between — skip the tabs screen entirely.
       if (validRounds.length === 1) {
-        router.replace(`/project/${validRounds[0].id}`);
+        router.replace(
+          `/project/${validRounds[0].id}${isOwnerViewer ? "?viewer=owner" : ""}`
+        );
       }
     }
 
     load();
-  }, [locationId, router]);
+  }, [locationId, router, isOwnerViewer]);
 
   async function startNewRound(event: FormEvent) {
     event.preventDefault();
@@ -163,12 +169,16 @@ export default function LocationPage({
       <section className="card stack">
         {location.groupId && (
           <Link
-            href={`/group/${location.groupId}/select`}
+            href={
+              isOwnerViewer
+                ? `/group/${location.groupId}`
+                : `/group/${location.groupId}/select`
+            }
             className="small row no-print"
             style={{ display: "inline-flex" }}
           >
             <ArrowLeft size={14} />
-            Choose a different location
+            {isOwnerViewer ? "All locations" : "Choose a different location"}
           </Link>
         )}
         <div>
@@ -185,7 +195,7 @@ export default function LocationPage({
             {rounds.map((round) => (
               <Link
                 key={round.id}
-                href={`/project/${round.id}`}
+                href={`/project/${round.id}${isOwnerViewer ? "?viewer=owner" : ""}`}
                 className="btn btn-secondary row between"
               >
                 <span>
